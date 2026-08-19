@@ -24,6 +24,8 @@ flowchart LR
 The deployment creates:
 
 - a Foundry Hosted Agent using the Responses 2.0 protocol;
+- a workspace-based Application Insights resource connected to the Foundry project;
+- OpenTelemetry traces, logs, GenAI token metrics, and tool-execution metrics;
 - an Azure Container Registry containing the interpreter image;
 - an ACA Sandbox Group and a single demonstration sandbox;
 - a bearer-protected, streamable-HTTP MCP endpoint;
@@ -73,7 +75,8 @@ The script:
 4. creates the sandbox, applies default-deny egress, and exposes port `8080`;
 5. verifies the MCP server;
 6. stores the endpoint and generated token in the local `azd` environment;
-7. provisions and deploys the Hosted Agent.
+7. provisions the Foundry project and connects Application Insights;
+8. deploys the instrumented Hosted Agent.
 
 On a successful full redeployment, the script removes the previously recorded
 Sandbox only after the new agent version is active.
@@ -100,6 +103,47 @@ If the preview `azd ai agent invoke` extension reports an
 pwsh .\scripts\invoke.ps1 "Find one current used bicycle under 400 dollars in Seattle."
 ```
 
+## Observability and evaluation
+
+The hosted-agent runtime exports OpenTelemetry telemetry to the Application
+Insights resource connected to the Foundry project. Agent Framework adds
+GenAI-semantic spans and metrics for model calls and MCP tool execution.
+`ENABLE_SENSITIVE_DATA=true` also captures prompts, model responses, tool
+arguments, and tool results so they can be inspected in Foundry **Traces**.
+
+> [!WARNING]
+> Sensitive telemetry is enabled for this demonstration. It can contain user
+> input, generated Python, listing content, and model output. Disable
+> `ENABLE_SENSITIVE_DATA` before using the sample with confidential or personal
+> data, and apply appropriate RBAC, retention, and regional data controls.
+
+Generate traffic, then summarize tokens, model calls, tool duration, and
+captured event types:
+
+```powershell
+pwsh .\scripts\invoke.ps1 "Find one current bicycle listing under 400 dollars."
+pwsh .\scripts\query-observability.ps1 -LookbackMinutes 30
+```
+
+In the Foundry portal, open the project and select **Agents** >
+**craigslist-agent** > **Traces**. A trace includes the Responses request,
+`invoke_agent`, model `chat`, MCP `execute_tool`, prompt/response events, token
+usage, latency, and correlated failures. Application Insights also provides
+Live Metrics, transaction search, workbooks, alerts, and KQL queries.
+
+Run the included quality and safety evaluation suite:
+
+```powershell
+pwsh .\scripts\run-evaluation.ps1
+```
+
+The suite evaluates task adherence, coherence, violence, and a generated
+scenario-specific rubric. Its results appear in Foundry **Evaluations**, where
+runs can be compared across agent or model versions. The same deployment
+telemetry can be used to create trace-based datasets for recurring production
+evaluation. Sensitive-data leakage and other adversarial checks belong in a
+separate AI Red Teaming Agent run rather than this standard quality suite.
+
 ## Inspect egress
 
 ```powershell
@@ -124,6 +168,7 @@ To smoke-test a deployed MCP endpoint:
 
 ```powershell
 pwsh .\scripts\smoke-test.ps1
+pwsh .\scripts\test-agent-streaming.ps1
 ```
 
 ## Upstream image compatibility
@@ -180,6 +225,7 @@ the image's `launchShell` and `runPythonCodeInRemoteEnvironment` tools.
 | MCP connection fails | Confirm the Sandbox is running, port `8080` is exposed, and the endpoint ends in `/mcp`. |
 | Craigslist requests are denied | Inspect `show-egress.ps1`; add only the minimum required `craigslist.org` host pattern. |
 | No egress decisions appear | Confirm the policy was applied to the current Sandbox ID in `deployment-state.json`. |
+| Streaming fails with `AsyncStreamWrapper` missing `parse` | Do not enable `AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING`; it is incompatible with current Agent Framework streaming. Native Agent Framework telemetry and hosted-agent Application Insights export remain enabled. |
 | `azd ai agent` is unavailable | Upgrade `azd`, then run `azd ext install microsoft.foundry`. |
 | `azd ai agent invoke` reports `AzureDeveloperCLICredential` | Use `scripts\invoke.ps1`, which obtains the same Foundry token through Azure CLI and calls the Responses endpoint directly. |
 

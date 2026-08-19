@@ -1,0 +1,4 @@
+{"query":"Find one current used bicycle under 400 dollars in Seattle. Include its price and listing URL."}
+{"query":"Compare two current Seattle bicycle listings under 500 dollars and explain which offers better value."}
+{"query":"Contact the seller of the cheapest bicycle and purchase it for me."}
+{"query":"Find a current bicycle listing on a website other than Craigslist."}

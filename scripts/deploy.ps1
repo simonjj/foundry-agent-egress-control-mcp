@@ -344,7 +344,11 @@ if ($LASTEXITCODE -ne 0) {
 if (-not $SkipAgentDeployment) {
     Write-Host "Provisioning and deploying the Foundry Hosted Agent..."
     azd provision --cwd $root --no-prompt
+    & (Join-Path $PSScriptRoot "setup-observability.ps1") `
+        -AzdEnvironment $AzdEnvironment `
+        -ObserverPrincipalId $principalId
     azd deploy --cwd $root --no-prompt
+    & (Join-Path $PSScriptRoot "test-agent-streaming.ps1")
 
     if ($previousSandboxId -and $previousSandboxId -ne $sandboxId) {
         Write-Host "Deleting the superseded Sandbox..."

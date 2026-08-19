@@ -47,6 +47,14 @@ services:
         value: ${MCP_SERVER_URL}
       - name: MCP_AUTH_TOKEN
         value: ${MCP_AUTH_TOKEN}
+      - name: ENABLE_INSTRUMENTATION
+        value: 'true'
+      - name: ENABLE_SENSITIVE_DATA
+        value: 'true'
+      - name: OTEL_TRACES_SAMPLER
+        value: always_on
+      - name: OTEL_METRIC_EXPORT_INTERVAL
+        value: '10000'
     container:
       resources:
         cpu: '0.5'

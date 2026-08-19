@@ -1,13 +1,17 @@
 import asyncio
+import logging
 import os
 
 from agent_framework import Agent, MCPStreamableHTTPTool
 from agent_framework.foundry import FoundryChatClient
+from agent_framework.observability import enable_instrumentation, get_tracer
 from agent_framework_foundry_hosting import ResponsesHostServer
 from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
 
 load_dotenv()
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+logger = logging.getLogger(__name__)
 
 
 def required_environment(name: str) -> str:
@@ -18,6 +22,13 @@ def required_environment(name: str) -> str:
 
 
 async def main() -> None:
+    sensitive_data_enabled = os.getenv("ENABLE_SENSITIVE_DATA", "false").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    enable_instrumentation(enable_sensitive_data=sensitive_data_enabled)
+
     credential = DefaultAzureCredential()
     model_name = os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME") or os.getenv(
         "FOUNDRY_MODEL_NAME"
@@ -63,12 +74,22 @@ seller, submit a form, or make a purchase. If Craigslist blocks the request or
 there are too few results, explain that limitation rather than fabricating data.
 """
 
-    agent = Agent(
-        client=client,
-        name="craigslist-agent",
-        instructions=instructions,
-        tools=[mcp_tool],
-        default_options={"store": False},
+    with get_tracer().start_as_current_span("configure_craigslist_agent") as span:
+        span.set_attribute("gen_ai.agent.name", "craigslist-agent")
+        span.set_attribute("agent.tool.name", "sandbox_python")
+        span.set_attribute("agent.sensitive_telemetry_enabled", sensitive_data_enabled)
+        agent = Agent(
+            client=client,
+            name="craigslist-agent",
+            instructions=instructions,
+            tools=[mcp_tool],
+            default_options={"store": False},
+        )
+
+    logger.info(
+        "Starting hosted agent with OpenTelemetry instrumentation; "
+        "sensitive telemetry enabled=%s",
+        sensitive_data_enabled,
     )
     server = ResponsesHostServer(agent)
     await server.run_async()
