@@ -1,0 +1,22 @@
+<policies>
+	<inbound>
+		<base />
+		<rate-limit calls="60" renewal-period="60" />
+		<llm-token-limit counter-key="@(context.Subscription.Id)" tokens-per-minute="60000" estimate-prompt-tokens="true" remaining-tokens-header-name="x-ratelimit-remaining-tokens" />
+		<set-header name="Authorization" exists-action="delete" />
+		<set-backend-service base-url="${backend_url}" />
+		<authentication-managed-identity resource="https://ai.azure.com" ignore-error="false" />
+	</inbound>
+	<backend>
+		<forward-request timeout="300" buffer-response="false" />
+	</backend>
+	<outbound>
+		<base />
+		<set-header name="x-content-type-options" exists-action="override">
+			<value>nosniff</value>
+		</set-header>
+	</outbound>
+	<on-error>
+		<base />
+	</on-error>
+</policies>

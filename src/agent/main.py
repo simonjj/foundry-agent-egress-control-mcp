@@ -53,36 +53,48 @@ async def main() -> None:
         request_timeout=90,
         sse_read_timeout=120,
     )
-
+    gateway_key = required_environment("APIM_SUBSCRIPTION_KEY")
     client = FoundryChatClient(
-        project_endpoint=required_environment("FOUNDRY_PROJECT_ENDPOINT"),
+        project_endpoint=required_environment("APIM_FOUNDRY_PROJECT_ENDPOINT"),
         model=model_name,
         credential=credential,
+        allow_preview=True,
+        default_headers={"Ocp-Apim-Subscription-Key": gateway_key},
     )
+    web_search_tool = FoundryChatClient.get_web_search_tool(
+        search_context_size="medium"
+    )
+    browser_tool = FoundryChatClient.get_browser_automation_tool(
+        connection_id=required_environment("PLAYWRIGHT_CONNECTION_ID")
+    ).as_dict()
 
     instructions = """\
-You help users find and compare current Craigslist listings.
+You demonstrate a governed enterprise agent architecture by helping users find,
+inspect, and compare current Craigslist listings.
 
-For any question about current listings, use the run_python tool to retrieve
-the relevant craigslist.org pages and analyze the live results. Prefer the
-requests and BeautifulSoup libraries. Send a descriptive User-Agent, use
-reasonable timeouts, and make only the minimum requests needed.
+Use web search for broad discovery and recent public-web information. Use
+browser automation when a result must be inspected interactively or a page
+depends on browser rendering. Use run_python for calculations, structured
+analysis, or minimal direct retrieval from approved craigslist.org hosts.
 
 Always include the URLs of listings used in the answer. Clearly distinguish
-listing claims from your own calculations. Never invent a listing, contact a
-seller, submit a form, or make a purchase. If Craigslist blocks the request or
-there are too few results, explain that limitation rather than fabricating data.
+search or listing claims from your own calculations. Browser automation is
+read-only: never sign in, enter credentials, contact a seller, submit a form,
+book, bid, or make a purchase. Never invent a listing. If a site blocks access
+or there are too few results, explain that limitation rather than fabricating
+data.
 """
 
     with get_tracer().start_as_current_span("configure_craigslist_agent") as span:
         span.set_attribute("gen_ai.agent.name", "craigslist-agent")
         span.set_attribute("agent.tool.name", "sandbox_python")
+        span.set_attribute("agent.gateway", "azure-api-management")
         span.set_attribute("agent.sensitive_telemetry_enabled", sensitive_data_enabled)
         agent = Agent(
             client=client,
             name="craigslist-agent",
             instructions=instructions,
-            tools=[mcp_tool],
+            tools=[mcp_tool, browser_tool, web_search_tool],
             default_options={"store": False},
         )
 

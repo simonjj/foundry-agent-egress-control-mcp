@@ -2,8 +2,8 @@
 
 requiredVersions:
   extensions:
-    azure.ai.agents: '>=1.0.0-beta.4'
-name: aca-sandbox-python-code-interpreter
+    azure.ai.agents: '>=1.0.0-beta.9'
+name: state-street-day3-agent
 services:
   ai-project:
     host: azure.ai.project
@@ -26,38 +26,38 @@ services:
         - MCP
         - ACA Sandboxes
         - Code Interpreter
+        - Azure API Management
+        - Web Search
+        - Browser Automation
     project: src/agent
     language: python
-    codeConfiguration:
-      runtime: python_3_13
-      entryPoint: main.py
+    docker:
+      path: Dockerfile
+      remoteBuild: true
     uses:
       - ai-project
     kind: hosted
     name: craigslist-agent
-    displayName: Sandbox-backed Craigslist Agent
-    description: Uses an authenticated MCP Python interpreter running in an ACA Sandbox with observable egress.
+    displayName: State Street Day 3 Reference Agent
+    description: Routes model and Bing-backed web-search traffic through APIM and uses ACA Sandbox plus Playwright Workspace tools.
     protocols:
       - protocol: responses
         version: 2.0.0
-    environmentVariables:
-      - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
-        value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME:-gpt-5.4-mini}
-      - name: MCP_SERVER_URL
-        value: ${MCP_SERVER_URL}
-      - name: MCP_AUTH_TOKEN
-        value: ${MCP_AUTH_TOKEN}
-      - name: ENABLE_INSTRUMENTATION
-        value: 'true'
-      - name: ENABLE_SENSITIVE_DATA
-        value: 'true'
-      - name: OTEL_TRACES_SAMPLER
-        value: always_on
-      - name: OTEL_METRIC_EXPORT_INTERVAL
-        value: '10000'
+    env:
+      APIM_FOUNDRY_PROJECT_ENDPOINT: ${APIM_FOUNDRY_PROJECT_ENDPOINT}
+      APIM_SUBSCRIPTION_KEY: ${APIM_SUBSCRIPTION_KEY}
+      AZURE_AI_MODEL_DEPLOYMENT_NAME: ${AZURE_AI_MODEL_DEPLOYMENT_NAME=gpt-5.4-mini}
+      MCP_SERVER_URL: ${MCP_SERVER_URL}
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN}
+      PLAYWRIGHT_CONNECTION_ID: ${PLAYWRIGHT_CONNECTION_ID}
+      ENABLE_INSTRUMENTATION: 'true'
+      ENABLE_SENSITIVE_DATA: 'true'
+      OTEL_TRACES_SAMPLER: always_on
+      OTEL_METRIC_EXPORT_INTERVAL: '10000'
     container:
       resources:
         cpu: '0.5'
         memory: 1Gi
 infra:
-  provider: microsoft.foundry
+  provider: terraform
+  path: infrastructure/terraform

@@ -1,6 +1,5 @@
 beautifulsoup4==4.13.5
 lxml==6.0.1
-mcp[cli]==1.29.0
+mcp[cli]==1.29.1
 pandas==2.3.2
 requests==2.32.5
-

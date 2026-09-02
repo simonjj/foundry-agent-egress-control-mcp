@@ -1,0 +1,14 @@
+subscription_id      = "30501c6c-81f6-41ac-a388-d29cf43a020d"
+resource_group_name  = "ss-agent-day3"
+location             = "centralus"
+playwright_location  = "westus3"
+name_prefix          = "ss-day3"
+model_capacity       = 10
+apim_sku_name        = "Developer_1"
+
+tags = {
+  application = "state-street-day3-agent"
+  managed_by  = "terraform"
+  scenario    = "foundry-hosted-agent"
+  environment = "demo"
+}

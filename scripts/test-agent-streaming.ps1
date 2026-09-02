@@ -14,7 +14,7 @@ azd env get-values --cwd $root | ForEach-Object {
     }
 }
 
-$endpoint = $values.AGENT_CRAIGSLIST_AGENT_RESPONSES_ENDPOINT
+$endpoint = $values.AGENT_CRAIGSLIST_AGENT_RESPONSES_ENDPOINT.Trim()
 if (-not $endpoint) {
     throw "The agent Responses endpoint is not configured."
 }
@@ -23,6 +23,7 @@ $token = az account get-access-token `
     --scope "https://ai.azure.com/.default" `
     --query accessToken `
     --output tsv
+$token = ($token -join "").Trim()
 $body = @{
     input = $Message
     stream = $true

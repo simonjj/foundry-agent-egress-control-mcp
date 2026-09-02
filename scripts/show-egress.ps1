@@ -1,23 +1,58 @@
 [CmdletBinding()]
-param()
+param(
+    [string]$TerraformPath = "",
+    [switch]$BrowserFallback
+)
 
 $ErrorActionPreference = "Stop"
+$PSNativeCommandUseErrorActionPreference = $true
+
 $root = Split-Path $PSScriptRoot -Parent
-$statePath = Join-Path $root "deployment-state.json"
-if (-not (Test-Path $statePath)) {
-    throw "deployment-state.json was not found. Run scripts\deploy.ps1 first."
+$infraDirectory = Join-Path $root "infrastructure\terraform"
+
+if (-not $TerraformPath) {
+    $terraformCommand = Get-Command "terraform" -ErrorAction SilentlyContinue
+    if (-not $terraformCommand) {
+        throw "Terraform was not found on PATH. Install it or pass -TerraformPath."
+    }
+    $TerraformPath = $terraformCommand.Source
+}
+if (-not (Test-Path $TerraformPath -PathType Leaf)) {
+    throw "Terraform was not found at '$TerraformPath'."
 }
 
-$state = Get-Content $statePath -Raw | ConvertFrom-Json
+function Get-TerraformOutput {
+    param([Parameter(Mandatory)][string]$Name)
+
+    $value = & $TerraformPath "-chdir=$infraDirectory" output -raw $Name
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to read Terraform output '$Name'. Run scripts\deploy.ps1 first."
+    }
+    return ($value -join [Environment]::NewLine).Trim()
+}
+
+$subscriptionId = Get-TerraformOutput -Name "AZURE_SUBSCRIPTION_ID"
+$resourceGroupName = Get-TerraformOutput -Name "AZURE_RESOURCE_GROUP"
+$location = Get-TerraformOutput -Name "AZURE_LOCATION"
+$sandboxGroupName = Get-TerraformOutput -Name "SANDBOX_GROUP_NAME"
+$sandboxOutputName = if ($BrowserFallback) { "BROWSER_SANDBOX_ID" } else { "SANDBOX_ID" }
+$sandboxId = Get-TerraformOutput -Name $sandboxOutputName
+
+az account set --subscription $subscriptionId
 $token = az account get-access-token `
     --scope "https://dynamicsessions.io/.default" `
     --query accessToken `
     --output tsv
-$uri = "https://management.$($state.location).azuredevcompute.io" +
-    "/subscriptions/$($state.subscriptionId)" +
-    "/resourceGroups/$($state.resourceGroupName)" +
-    "/sandboxGroups/$($state.sandboxGroupName)" +
-    "/sandboxes/$($state.sandboxId)" +
+$token = ($token -join "").Trim()
+if (-not $token) {
+    throw "Unable to acquire an ACA Sandbox data-plane access token."
+}
+
+$uri = "https://management.$location.azuredevcompute.io" +
+    "/subscriptions/$subscriptionId" +
+    "/resourceGroups/$resourceGroupName" +
+    "/sandboxGroups/$sandboxGroupName" +
+    "/sandboxes/$sandboxId" +
     "/egress-decisions?api-version=2026-02-01-preview"
 $decisions = Invoke-RestMethod -Uri $uri -Headers @{
     Authorization = "Bearer $token"
@@ -26,21 +61,21 @@ $decisions = Invoke-RestMethod -Uri $uri -Headers @{
 $rows = @(
     $decisions.networkEgress.allowed | ForEach-Object {
         [pscustomobject]@{
-            Timestamp = $_.timestamp
-            Decision = "Allow"
-            Method = $_.method
-            Host = $_.host
-            Path = $_.path
+            Timestamp   = $_.timestamp
+            Decision    = "Allow"
+            Method      = $_.method
+            Host        = $_.host
+            Path        = $_.path
             MatchedRule = $_.matchedRule
         }
     }
     $decisions.networkEgress.denied | ForEach-Object {
         [pscustomobject]@{
-            Timestamp = $_.timestamp
-            Decision = "Deny"
-            Method = $_.method
-            Host = $_.host
-            Path = $_.path
+            Timestamp   = $_.timestamp
+            Decision    = "Deny"
+            Method      = $_.method
+            Host        = $_.host
+            Path        = $_.path
             MatchedRule = $_.matchedRule
         }
     }

@@ -1,11 +1,11 @@
 [CmdletBinding()]
 param(
-    [string]$Location = "eastus2",
-    [string]$ResourceGroupName = "rg-aca-python-code-mcp",
-    [string]$SandboxGroupName = "sg-python-code-mcp",
-    [string]$AzdEnvironment = "aca-python-code-mcp-dev",
-    [string]$ImageTag = "1.0.0",
-    [string]$InterpreterImage,
+    [string]$SubscriptionId = "30501c6c-81f6-41ac-a388-d29cf43a020d",
+    [string]$ResourceGroupName = "ss-agent-day3",
+    [string]$Location = "centralus",
+    [string]$PlaywrightLocation = "westus3",
+    [string]$AzdEnvironment = "state-street-day3",
+    [string]$TerraformPath = "",
     [switch]$SkipAgentDeployment
 )
 
@@ -14,313 +14,77 @@ $PSNativeCommandUseErrorActionPreference = $true
 $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
 
-function ConvertFrom-MixedJson {
-    param([Parameter(Mandatory)][object[]]$InputLines)
+function Invoke-Checked {
+    param(
+        [Parameter(Mandatory)][string]$Command,
+        [Parameter(Mandatory)][string[]]$Arguments
+    )
 
-    $text = $InputLines -join [Environment]::NewLine
-    $objectStart = $text.IndexOf("{")
-    $arrayStart = $text.IndexOf("[")
-    $starts = @($objectStart, $arrayStart) | Where-Object { $_ -ge 0 }
-    if ($null -eq $starts) {
-        throw "Command output did not contain JSON: $text"
+    & $Command @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "'$Command $($Arguments -join ' ')' failed with exit code $LASTEXITCODE."
     }
+}
 
-    $start = ($starts | Measure-Object -Minimum).Minimum
-    $objectEnd = $text.LastIndexOf("}")
-    $arrayEnd = $text.LastIndexOf("]")
-    $end = [Math]::Max($objectEnd, $arrayEnd)
-    if ($end -lt $start) {
-        throw "Command output contained incomplete JSON: $text"
+function Get-TerraformOutput {
+    param(
+        [Parameter(Mandatory)][string]$Name
+    )
+
+    $arguments = @("-chdir=$infraDirectory", "output", "-raw", $Name)
+    $value = & $TerraformPath @arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to read Terraform output '$Name'."
     }
-
-    return $text.Substring($start, $end - $start + 1) | ConvertFrom-Json
+    return ($value -join [Environment]::NewLine).Trim()
 }
 
 $root = Split-Path $PSScriptRoot -Parent
-$statePath = Join-Path $root "deployment-state.json"
-$previousSandboxId = $null
-if (Test-Path $statePath) {
-    $previousState = Get-Content $statePath -Raw | ConvertFrom-Json
-    $previousSandboxId = $previousState.sandboxId
-}
-$subscriptionId = az account show --query id -o tsv
-if (-not $subscriptionId) {
-    throw "Azure CLI is not authenticated. Run 'az login'."
-}
+$infraDirectory = Join-Path $root "infrastructure\terraform"
 
-foreach ($command in @("az", "azd", "aca")) {
+foreach ($command in @("az", "azd", "aca", "pwsh", "python")) {
     if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
         throw "Required command '$command' was not found."
     }
 }
-
-$principalId = az ad signed-in-user show --query id -o tsv
-if (-not $principalId) {
-    throw "Unable to resolve the signed-in user's Microsoft Entra object ID."
-}
-
-$hashInput = [Text.Encoding]::UTF8.GetBytes("$subscriptionId|$ResourceGroupName")
-$hash = [Convert]::ToHexString(
-    [Security.Cryptography.SHA256]::HashData($hashInput)
-).Substring(0, 10).ToLowerInvariant()
-$registryName = "acapycode$hash"
-
-Write-Host "Deploying Azure infrastructure..."
-$deploymentName = "aca-python-code-mcp-$(Get-Date -Format 'yyyyMMddHHmmss')"
-$outputs = az deployment sub create `
-    --name $deploymentName `
-    --location $Location `
-    --template-file (Join-Path $root "infrastructure\sandbox\main.bicep") `
-    --parameters `
-        location=$Location `
-        resourceGroupName=$ResourceGroupName `
-        containerRegistryName=$registryName `
-        sandboxGroupName=$SandboxGroupName `
-        principalId=$principalId `
-        principalType=User `
-    --query properties.outputs `
-    -o json | ConvertFrom-Json
-
-$registryLoginServer = $outputs.containerRegistryLoginServer.value
-$sourceImage = $InterpreterImage
-if (-not $sourceImage) {
-    $tagExists = $false
-    try {
-        $tags = az acr repository show-tags `
-            --name $registryName `
-            --repository python-code-mcp `
-            --output tsv 2>$null
-        $tagExists = $tags -contains $ImageTag
+if (-not $TerraformPath) {
+    $terraformCommand = Get-Command "terraform" -ErrorAction SilentlyContinue
+    if (-not $terraformCommand) {
+        throw "Terraform was not found on PATH. Install it or pass -TerraformPath."
     }
-    catch {
-        $tagExists = $false
-    }
-
-    if (-not $tagExists) {
-        Write-Host "Building the lightweight MCP interpreter image..."
-        $runId = az acr build `
-            --registry $registryName `
-            --image "python-code-mcp:$ImageTag" `
-            --no-logs `
-            --query runId `
-            --output tsv `
-            (Join-Path $root "src\interpreter")
-
-        do {
-            Start-Sleep -Seconds 10
-            $buildStatus = az acr task show-run `
-                --registry $registryName `
-                --run-id $runId `
-                --query status `
-                --output tsv
-            Write-Host "ACR build status: $buildStatus"
-        } while ($buildStatus -in @("Queued", "Started", "Running"))
-
-        if ($buildStatus -ne "Succeeded") {
-            throw "ACR build $runId finished with status '$buildStatus'."
-        }
-    }
-    $sourceImage = "$registryLoginServer/python-code-mcp:$ImageTag"
+    $TerraformPath = $terraformCommand.Source
+}
+if (-not (Test-Path $TerraformPath -PathType Leaf)) {
+    throw "Terraform was not found at '$TerraformPath'."
 }
 
-Write-Host "Waiting for Sandbox RBAC and ACR pull permissions..."
-Start-Sleep -Seconds 20
-
-$diskName = if ($InterpreterImage) { "upstream-python312-mcp" } else { "python-code-mcp-$($ImageTag.Replace('.', '-'))" }
-$disks = aca sandboxgroup disk list `
-    --group $SandboxGroupName `
-    --resource-group $ResourceGroupName `
-    --subscription $subscriptionId `
-    --region $Location `
-    -o json | ConvertFrom-Json
-$disk = $disks | Where-Object { $_.labels.name -eq $diskName } | Select-Object -First 1
-
-if (-not $disk) {
-    Write-Host "Importing '$sourceImage' as a Sandbox disk image..."
-    $diskArgs = @(
-        "sandboxgroup", "disk", "create",
-        "--group", $SandboxGroupName,
-        "--name", $diskName,
-        "--image", $sourceImage,
-        "--resource-group", $ResourceGroupName,
-        "--subscription", $subscriptionId,
-        "--region", $Location,
-        "--output", "json"
-    )
-    if (-not $InterpreterImage) {
-        $registryToken = az acr login `
-            --name $registryName `
-            --expose-token `
-            --query accessToken `
-            --output tsv
-        $diskArgs += @(
-            "--username", "00000000-0000-0000-0000-000000000000",
-            "--token", $registryToken
-        )
-    }
-    $disk = ConvertFrom-MixedJson -InputLines @(& aca @diskArgs)
+az account set --subscription $SubscriptionId
+$accountId = az account show --query id -o tsv
+if ($accountId -ne $SubscriptionId) {
+    throw "Azure CLI is not using subscription $SubscriptionId."
 }
 
-if ($disk.status.state -ne "Ready") {
-    throw "Sandbox disk image is not ready. Current state: $($disk.status.state)"
-}
+Invoke-Checked -Command $TerraformPath -Arguments @("-chdir=$infraDirectory", "init")
+Invoke-Checked -Command $TerraformPath -Arguments @("-chdir=$infraDirectory", "fmt", "-check", "-recursive")
+Invoke-Checked -Command $TerraformPath -Arguments @("-chdir=$infraDirectory", "validate")
 
-$tokenBytes = [byte[]]::new(48)
-[Security.Cryptography.RandomNumberGenerator]::Fill($tokenBytes)
-$mcpToken = [Convert]::ToBase64String($tokenBytes).TrimEnd("=").Replace("+", "-").Replace("/", "_")
-$sandboxEntrypoint = if ($InterpreterImage) {
-    @("/app/entrypoint.sh")
-}
-else {
-    @("python", "/app/server.py")
-}
-$sandboxPort = if ($InterpreterImage) { 8888 } else { 8080 }
-$sandboxEnvironment = if ($InterpreterImage) {
-    [ordered]@{
-        MCP_AUTH_TOKEN       = $mcpToken
-        CODE_INTERPRETER_PORT = "$sandboxPort"
-        ENABLE_AUTH          = "true"
-        ENABLE_EGRESS        = "true"
-    }
-}
-else {
-    [ordered]@{
-        MCP_AUTH_TOKEN = $mcpToken
-        MCP_HOST       = "0.0.0.0"
-        MCP_PORT       = "$sandboxPort"
-    }
-}
+$planPath = Join-Path $infraDirectory ".terraform\state-street-day3.tfplan"
+Invoke-Checked -Command $TerraformPath -Arguments @(
+    "-chdir=$infraDirectory",
+    "plan",
+    "-out=$planPath",
+    "-var=subscription_id=$SubscriptionId",
+    "-var=resource_group_name=$ResourceGroupName",
+    "-var=location=$Location",
+    "-var=playwright_location=$PlaywrightLocation"
+)
+Invoke-Checked -Command $TerraformPath -Arguments @(
+    "-chdir=$infraDirectory",
+    "apply",
+    "-auto-approve",
+    $planPath
+)
 
-Write-Host "Creating the interpreter Sandbox..."
-$sandboxManifest = [ordered]@{
-    diskId      = $disk.id
-    resources   = [ordered]@{
-        cpu    = "2000m"
-        memory = "4Gi"
-    }
-    entrypoint  = $sandboxEntrypoint
-    environment = $sandboxEnvironment
-    labels      = [ordered]@{
-        application = "aca-python-code-mcp"
-        version     = $ImageTag
-    }
-    lifecycle   = [ordered]@{
-        autoSuspendPolicy = [ordered]@{
-            enabled  = $false
-            interval = 0
-            mode     = "Memory"
-        }
-        autoDeletePolicy  = [ordered]@{
-            enabled                 = $false
-            deleteIntervalInSeconds = 0
-        }
-    }
-    egressPolicy = [ordered]@{
-        defaultAction = "Deny"
-        hostRules     = @(
-            [ordered]@{ pattern = "craigslist.org"; action = "Allow" }
-            [ordered]@{ pattern = "*.craigslist.org"; action = "Allow" }
-        )
-    }
-    ports        = @(
-        [ordered]@{
-            port = $sandboxPort
-            auth = [ordered]@{ anonymous = $true }
-        }
-    )
-}
-$manifestPath = Join-Path ([IO.Path]::GetTempPath()) "aca-sandbox-$([guid]::NewGuid()).json"
-try {
-    $sandboxManifest | ConvertTo-Json -Depth 10 | Set-Content -Path $manifestPath -Encoding utf8
-    $sandboxOutput = @(aca sandbox apply `
-        --file $manifestPath `
-        --group $SandboxGroupName `
-        --resource-group $ResourceGroupName `
-        --subscription $subscriptionId `
-        --region $Location `
-        --output json)
-}
-finally {
-    Remove-Item $manifestPath -Force -ErrorAction SilentlyContinue
-}
-try {
-    $sandbox = ConvertFrom-MixedJson -InputLines $sandboxOutput
-}
-catch {
-    $sandboxText = $sandboxOutput -join [Environment]::NewLine
-    $sandboxIdMatch = [regex]::Match(
-        $sandboxText,
-        "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
-        [Text.RegularExpressions.RegexOptions]::IgnoreCase
-    )
-    if (-not $sandboxIdMatch.Success) {
-        throw
-    }
-    $sandbox = ConvertFrom-MixedJson -InputLines @(aca sandbox get `
-        --id $sandboxIdMatch.Value `
-        --group $SandboxGroupName `
-        --resource-group $ResourceGroupName `
-        --subscription $subscriptionId `
-        --region $Location `
-        --output json)
-}
-
-$sandboxId = $sandbox.id
-if (-not $sandboxId) {
-    throw "Sandbox creation did not return an ID."
-}
-
-$portUrl = @($sandbox.ports)[0].url
-if (-not $portUrl) {
-    $sandbox = ConvertFrom-MixedJson -InputLines @(aca sandbox get `
-        --id $sandboxId `
-        --group $SandboxGroupName `
-        --resource-group $ResourceGroupName `
-        --subscription $subscriptionId `
-        --region $Location `
-        --output json)
-    $portUrl = @($sandbox.ports)[0].url
-}
-if (-not $portUrl) {
-    throw "Port exposure did not return a URL."
-}
-if (-not $portUrl.StartsWith("http")) {
-    $portUrl = "https://$portUrl"
-}
-$mcpUrl = "$($portUrl.TrimEnd('/'))/mcp"
-$healthUrl = "$($portUrl.TrimEnd('/'))/health"
-
-Write-Host "Waiting for the interpreter health endpoint..."
-$healthy = $false
-for ($attempt = 1; $attempt -le 30; $attempt++) {
-    try {
-        $response = Invoke-WebRequest -Uri $healthUrl -TimeoutSec 10
-        if ($response.StatusCode -eq 200) {
-            $healthy = $true
-            break
-        }
-    }
-    catch {
-        Start-Sleep -Seconds 5
-    }
-}
-if (-not $healthy) {
-    throw "Interpreter did not become healthy at $healthUrl."
-}
-
-$state = [ordered]@{
-    subscriptionId = $subscriptionId
-    resourceGroupName = $ResourceGroupName
-    location = $Location
-    containerRegistryName = $registryName
-    sandboxGroupName = $SandboxGroupName
-    sandboxId = $sandboxId
-    diskImageId = $disk.id
-    mcpServerUrl = $mcpUrl
-}
-$state | ConvertTo-Json | Set-Content -Path $statePath -Encoding utf8
-
-Write-Host "Configuring the local azd environment..."
 try {
     azd env select $AzdEnvironment --cwd $root --no-prompt | Out-Null
 }
@@ -328,40 +92,57 @@ catch {
     azd env new $AzdEnvironment --cwd $root --no-prompt | Out-Null
 }
 azd env select $AzdEnvironment --cwd $root --no-prompt | Out-Null
-azd env set MCP_SERVER_URL $mcpUrl --cwd $root | Out-Null
-azd env set MCP_AUTH_TOKEN $mcpToken --cwd $root | Out-Null
-azd env set AZURE_LOCATION $Location --cwd $root | Out-Null
-azd env set AZURE_AI_MODEL_DEPLOYMENT_NAME gpt-5.4-mini --cwd $root | Out-Null
 
-Write-Host "Running an MCP smoke test..."
-$env:MCP_SERVER_URL = $mcpUrl
-$env:MCP_AUTH_TOKEN = $mcpToken
+$terraformOutputs = @(
+    "APPLICATION_INSIGHTS_NAME",
+    "APIM_FOUNDRY_PROJECT_ENDPOINT",
+    "APIM_SUBSCRIPTION_KEY",
+    "BROWSER_SANDBOX_ID",
+    "AZURE_AI_ACCOUNT_NAME",
+    "AZURE_AI_MODEL_DEPLOYMENT_NAME",
+    "AZURE_AI_PROJECT_ACR_CONNECTION_NAME",
+    "AZURE_AI_PROJECT_CONNECTION_NAMES",
+    "AZURE_AI_PROJECT_ENDPOINT",
+    "AZURE_AI_PROJECT_ID",
+    "AZURE_AI_PROJECT_NAME",
+    "AZURE_CONTAINER_REGISTRY_ENDPOINT",
+    "AZURE_CONTAINER_REGISTRY_RESOURCE_ID",
+    "AZURE_FOUNDRY_RESOURCE_GROUP",
+    "AZURE_LOCATION",
+    "AZURE_OPENAI_ENDPOINT",
+    "AZURE_RESOURCE_GROUP",
+    "AZURE_SUBSCRIPTION_ID",
+    "AZURE_TENANT_ID",
+    "FOUNDRY_PROJECT_ENDPOINT",
+    "MCP_AUTH_TOKEN",
+    "MCP_SERVER_URL",
+    "PLAYWRIGHT_CONNECTION_ID",
+    "PLAYWRIGHT_MCP_AUTH_TOKEN",
+    "PLAYWRIGHT_MCP_SERVER_URL",
+    "PLAYWRIGHT_WORKSPACE_ID",
+    "SANDBOX_GROUP_NAME",
+    "SANDBOX_ID"
+)
+foreach ($name in $terraformOutputs) {
+    $value = Get-TerraformOutput -Name $name
+    azd env set $name $value --cwd $root | Out-Null
+}
+
+$env:MCP_SERVER_URL = Get-TerraformOutput -Name "MCP_SERVER_URL"
+$env:MCP_AUTH_TOKEN = Get-TerraformOutput -Name "MCP_AUTH_TOKEN"
 python (Join-Path $root "scripts\smoke_test.py")
 if ($LASTEXITCODE -ne 0) {
-    throw "MCP smoke test failed."
+    throw "The ACA Sandbox MCP smoke test failed."
 }
 
 if (-not $SkipAgentDeployment) {
-    Write-Host "Provisioning and deploying the Foundry Hosted Agent..."
-    azd provision --cwd $root --no-prompt
-    & (Join-Path $PSScriptRoot "setup-observability.ps1") `
-        -AzdEnvironment $AzdEnvironment `
-        -ObserverPrincipalId $principalId
     azd deploy --cwd $root --no-prompt
     & (Join-Path $PSScriptRoot "test-agent-streaming.ps1")
-
-    if ($previousSandboxId -and $previousSandboxId -ne $sandboxId) {
-        Write-Host "Deleting the superseded Sandbox..."
-        aca sandbox delete `
-            --id $previousSandboxId `
-            --group $SandboxGroupName `
-            --resource-group $ResourceGroupName `
-            --subscription $subscriptionId `
-            --region $Location `
-            --yes | Out-Null
-    }
+    & (Join-Path $PSScriptRoot "test-agent-tools.ps1")
 }
 
 Write-Host "Deployment complete."
-Write-Host "MCP endpoint: $mcpUrl"
-Write-Host "State file: $statePath"
+Write-Host "Resource group: $ResourceGroupName"
+Write-Host "Primary region: $Location"
+Write-Host "Playwright region: $PlaywrightLocation"
+Write-Host "Existing Sandbox resources were preserved."
