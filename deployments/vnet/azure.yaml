@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+requiredVersions:
+  extensions:
+    azure.ai.agents: '>=1.0.0-beta.9'
+name: state-street-vnet-agent
+services:
+  ai-project:
+    host: azure.ai.project
+    deployments:
+      - name: gpt-5.4-mini
+        model:
+          format: OpenAI
+          name: gpt-5.4-mini
+          version: '2026-03-17'
+        sku:
+          name: GlobalStandard
+          capacity: 5
+  craigslist-agent-vnet:
+    host: azure.ai.agent
+    metadata:
+      tags:
+        - Agent Framework
+        - AI Agent Hosting
+        - Responses Protocol
+        - Private Networking
+        - ACA Sandboxes
+        - Code Interpreter
+        - Nginx
+        - Playwright MCP
+    project: .azd-src/agent
+    language: python
+    docker:
+      path: Dockerfile
+      remoteBuild: true
+    uses:
+      - ai-project
+    kind: hosted
+    name: craigslist-agent-vnet
+    displayName: State Street VNet Reference Agent
+    description: Uses Foundry VNet injection, a private Nginx gateway, and private ACA Sandbox MCP tools.
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+    env:
+      PRIVATE_FOUNDRY_GATEWAY_ENDPOINT: ${PRIVATE_FOUNDRY_GATEWAY_ENDPOINT}
+      AZURE_AI_MODEL_DEPLOYMENT_NAME: ${AZURE_AI_MODEL_DEPLOYMENT_NAME=gpt-5.4-mini}
+      MCP_SERVER_URL: ${MCP_SERVER_URL}
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN}
+      BROWSER_MCP_SERVER_URL: ${BROWSER_MCP_SERVER_URL}
+      BROWSER_MCP_AUTH_TOKEN: ${BROWSER_MCP_AUTH_TOKEN}
+      ENABLE_FOUNDRY_WEB_SEARCH: 'false'
+      ENABLE_SANDBOX_SEARCH: 'true'
+      ENABLE_INSTRUMENTATION: 'true'
+      ENABLE_SENSITIVE_DATA: 'false'
+      OTEL_TRACES_SAMPLER: always_on
+      OTEL_METRIC_EXPORT_INTERVAL: '10000'
+    container:
+      resources:
+        cpu: '0.5'
+        memory: 1Gi
+infra:
+  provider: terraform
+  path: ../../infrastructure/terraform-vnet

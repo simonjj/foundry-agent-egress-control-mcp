@@ -10,6 +10,7 @@ RUN groupadd --gid 10001 interpreter \
 
 WORKDIR /app
 COPY requirements.txt .
+ARG PIP_INDEX_URL
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY executor.py server.py ./
@@ -25,4 +26,3 @@ HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=5 \
     CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.getenv('MCP_PORT', '8080') + '/health', timeout=2)"
 
 CMD ["python", "/app/server.py"]
-

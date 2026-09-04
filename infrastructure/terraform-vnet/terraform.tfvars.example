@@ -1,0 +1,12 @@
+subscription_id          = "30501c6c-81f6-41ac-a388-d29cf43a020d"
+tenant_id                = "72f988bf-86f1-41af-91ab-2d7cd011db47"
+location                 = "centralus"
+resource_group_name      = "ss-agent-vnets"
+prefix                   = "ss-vnet"
+private_mode             = false
+enable_sandbox_deployment = false
+allow_registry_token_fallback = false
+
+tags = {
+  owner = "state-street-reference"
+}

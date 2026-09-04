@@ -5,6 +5,8 @@ playwright_location  = "westus3"
 name_prefix          = "ss-day3"
 model_capacity       = 10
 apim_sku_name        = "Developer_1"
+legacy_interpreter_source_hash = "39bfe4afdffeab782f7ca47e5579df01bac78ca5e6737f402ca3c30620a8861c"
+legacy_browser_source_hash     = "43d177136d6e8c09b1649349a4a0d72fa3e91eabcbd9d06ccca3c27294b0eba7"
 
 tags = {
   application = "state-street-day3-agent"

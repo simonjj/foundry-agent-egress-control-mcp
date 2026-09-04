@@ -1,6 +1,7 @@
 .azure/
 .env
 .venv/
+.venv-vnet/
 node_modules/
 __pycache__/
 *.py[cod]
@@ -15,3 +16,8 @@ infrastructure/terraform/*.tfplan
 infrastructure/terraform/*.tfstate
 infrastructure/terraform/*.tfstate.*
 infrastructure/terraform/terraform.tfvars
+infrastructure/terraform-vnet/.terraform/
+infrastructure/terraform-vnet/*.tfplan
+infrastructure/terraform-vnet/*.tfstate
+infrastructure/terraform-vnet/*.tfstate.*
+infrastructure/terraform-vnet/terraform.tfvars

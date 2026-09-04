@@ -1,15 +1,18 @@
 # State Street Foundry Agent Reference Architecture
 
-This repository deploys a complete Microsoft Foundry Hosted Agent reference
-architecture with Terraform. It demonstrates governed model access through
-Azure API Management (APIM), isolated Python execution in Azure Container Apps
-(ACA) Sandbox, current public-web grounding, browser automation through Azure
-Playwright Workspace, and end-to-end OpenTelemetry observability.
+This repository deploys two complete Microsoft Foundry Hosted Agent reference
+architectures with Terraform:
+
+- the original `ss-agent-day3` profile with APIM, Foundry web search, managed
+  Playwright Workspace, and ACA Sandbox Python; and
+- the parallel `ss-agent-vnets` profile with hub-and-spoke networking, Foundry
+  VNet injection, private endpoints, an internal Nginx gateway, and private ACA
+  Sandbox Python/search/browser tools.
 
 > [!IMPORTANT]
 > This is a working engineering reference, not a production security baseline.
 > Foundry Browser Automation and ACA Sandbox include preview surfaces as of
-> September 2, 2026. Review networking, data protection, capacity, retention,
+> September 4, 2026. Review networking, data protection, capacity, retention,
 > identity, and operational controls before using this design with production
 > or confidential data.
 
@@ -32,7 +35,178 @@ Playwright Workspace, and end-to-end OpenTelemetry observability.
 Open the deployed agent in
 [Microsoft Foundry](https://ai.azure.com/nextgen/r/MFAcbIH2QayjiNKc9DoCDQ,ss-agent-day3,,ss-day3-ai-bhcvln,ss-day3-project/build/agents/craigslist-agent/build?tid=72f988bf-86f1-41af-91ab-2d7cd011db47&version=4).
 
-## Architecture
+## Parallel private VNet deployment
+
+The second profile is deployed independently and does not replace or modify
+the original resource group.
+
+| Item | Deployed value |
+|---|---|
+| Resource group | `ss-agent-vnets` |
+| Region | `centralus` |
+| Foundry account | `ss-vnet-ai-k7fncj` |
+| Foundry project | `ss-vnet-project` |
+| Hosted Agent | `craigslist-agent-vnet`, version 7 |
+| Model deployment | `gpt-5.4-mini` |
+| Internal gateway | `ss-vnet-gateway-k7fncj` |
+| Express Sandbox environment | `ss-vnet-sandbox-env-k7fncj` |
+| Sandbox Group | `ss-vnet-sandbox-group-k7fncj` |
+| Sandbox VNet connection | `tools-egress` |
+| Python Sandbox | `e90b872f-557a-47c5-aacd-7ade7b44a265` |
+| Browser Sandbox | `09ad4db6-f4bb-4fad-bc2c-38751213a047` |
+
+Open the private profile in:
+
+- [Microsoft Foundry agent playground](https://ai.azure.com/nextgen/r/MFAcbIH2QayjiNKc9DoCDQ,ss-agent-vnets,,ss-vnet-ai-k7fncj,ss-vnet-project/build/agents/craigslist-agent-vnet/build?version=7)
+- [Azure resource-group overview](https://portal.azure.com/#@72f988bf-86f1-41af-91ab-2d7cd011db47/resource/subscriptions/30501c6c-81f6-41ac-a388-d29cf43a020d/resourceGroups/ss-agent-vnets/overview)
+
+### VNet architecture
+
+![Rendered State Street VNet-isolated agent architecture](docs/images/state-street-vnet-architecture.svg)
+
+The deployed network layout is:
+
+```mermaid
+flowchart LR
+    U[Authorized caller] --> A[Foundry Hosted Agent v7]
+    subgraph AGENT[Agent spoke 10.62.0.0/16]
+      A
+    end
+    subgraph TOOLS[Tools spoke 10.63.0.0/16]
+      G[Internal Nginx gateway]
+      PY[Private Python/search MCP Sandbox]
+      BR[Private Playwright MCP Sandbox]
+    end
+    subgraph HUB[Hub 10.60.0.0/16]
+      FPE[Foundry private endpoint]
+      ACR[ACR private endpoint]
+      MON[Azure Monitor Private Link Scope]
+    end
+    A -->|Entra + SSE| G
+    G --> FPE
+    A -->|Bearer-authenticated MCP| PY
+    A -->|Bearer-authenticated MCP| BR
+    A -. private telemetry .-> MON
+    ACR -. immutable images .-> PY
+    ACR -. immutable images .-> BR
+    PY -. allowlisted public-web egress .-> WEB[Craigslist]
+    BR -. allowlisted public-web egress .-> WEB
+```
+
+The agent and tools spokes are directly peered because Azure VNet peering is
+not transitive and this reference does not deploy an Azure Firewall or NVA.
+Shared service private endpoints live in the hub and private DNS zones are
+linked to every VNet.
+
+### VNet request flows
+
+**Model**
+
+1. The VNet-injected Hosted Agent sends a Responses request to the internal
+   Nginx Container App.
+2. Nginx preserves the Entra `Authorization` header and HTTP/1.1 streaming.
+3. Private DNS resolves the Foundry account to the hub private endpoint.
+4. Foundry public network access is disabled and its network ACL defaults to
+   deny.
+
+**Python and governed search**
+
+1. The model selects `run_python` for calculation or `search_craigslist` for
+   broad listing discovery.
+2. The agent calls the private interpreter MCP endpoint in the Express Sandbox
+   environment.
+3. The MCP proxy validates its bearer token.
+4. ACA Sandbox uses the `tools-egress` VNet connection and default-deny egress.
+5. Only approved Craigslist host patterns are reachable by the search adapter.
+
+**Browser**
+
+1. The agent uses the private Playwright MCP Sandbox instead of Foundry-managed
+   Browser Automation.
+2. Chromium runs headless with read-only behavioral instructions and approved
+   destination hosts.
+3. HTTPS errors are ignored only inside this governed Sandbox browser because
+   the Sandbox egress path presents an intercepted certificate chain.
+
+**Telemetry**
+
+1. Agent Framework emits traces, requests, and dependency telemetry.
+2. Azure Monitor Private Link Scope receives ingestion through the hub private
+   endpoint.
+3. Public ingestion and query access are disabled after acceptance.
+
+### Profile comparison
+
+| Capability | Original APIM profile | Private VNet profile |
+|---|---|---|
+| Model gateway | APIM with subscription/rate/token policies | Internal Nginx pass-through |
+| Foundry data plane | Public endpoint through APIM managed identity | Hub private endpoint |
+| Hosted runtime | Foundry Hosted Agent | VNet-injected Foundry Hosted Agent |
+| Python | ACA Sandbox MCP | Private ACA Sandbox MCP |
+| Search | Foundry Bing-backed web search | `search_craigslist` in the private Python Sandbox |
+| Browser | Foundry-managed Playwright Workspace | Private Playwright MCP Sandbox |
+| Sandbox ingress | Public port plus bearer auth | Private Express environment plus bearer auth |
+| Sandbox egress | Sandbox policy | Sandbox policy plus customer VNet connection |
+| Observability | Public Application Insights ingestion | Azure Monitor Private Link Scope |
+
+Managed Foundry web search and managed Browser Automation are intentionally not
+registered in the private profile because they cannot provide the required
+customer-controlled private path. Work IQ is also not claimed for this profile
+without a supported customer-network endpoint.
+
+### VNet endpoints and access
+
+| Endpoint | Access |
+|---|---|
+| Hosted Agent Responses | `https://ss-vnet-ai-k7fncj.services.ai.azure.com/api/projects/ss-vnet-project/agents/craigslist-agent-vnet/endpoint/protocols/openai/responses?api-version=v1` |
+| Internal Nginx | `https://ss-vnet-gateway-k7fncj.thankfulwater-d8993605.centralus.azurecontainerapps.io` |
+| Python MCP | `https://e90b872f-557a-47c5-aacd-7ade7b44a265--8080.whitemushroom-0338fef6.centralus.azurecontainerapps.io/mcp` |
+| Browser MCP | `https://09ad4db6-f4bb-4fad-bc2c-38751213a047--8080.whitemushroom-0338fef6.centralus.azurecontainerapps.io/mcp` |
+
+These URLs are deployment coordinates, not public application endpoints. After
+final lockdown the Foundry data plane and Responses URL require private network
+reachability, and the gateway/Sandbox FQDNs resolve only through the linked
+private DNS paths.
+
+### Deploy the VNet profile
+
+```powershell
+pwsh .\scripts\deploy-vnet.ps1
+```
+
+The staged workflow:
+
+1. applies bootstrap Terraform with controlled public access;
+2. builds/imports immutable gateway, Python, and browser images;
+3. creates or reuses VNet-attached Sandboxes without deleting existing ones;
+4. deploys the Hosted Agent from `deployments\vnet`;
+5. grants its generated instance identity `Cognitive Services User`;
+6. tests private networking, Python `391`, governed search, browser title, and
+   SSE completion;
+7. disables public access for Foundry, ACR, Log Analytics, and Application
+   Insights; and
+8. reruns the internal private-network checks.
+
+To keep bootstrap access enabled temporarily for troubleshooting:
+
+```powershell
+pwsh .\scripts\deploy-vnet.ps1 -LeavePublicAccessEnabled
+```
+
+Do not leave that switch enabled after troubleshooting.
+
+Run the private-profile acceptance procedures independently:
+
+```powershell
+pwsh .\scripts\test-vnet-network.ps1
+pwsh .\scripts\test-wslc.ps1
+```
+
+The full hosted-agent tool test runs automatically before final lockdown.
+See [`CONFIRM-vnet.md`](CONFIRM-vnet.md) for the complete private-access,
+telemetry, drift, and regression procedure.
+
+## Original APIM architecture
 
 ![Rendered State Street agent architecture](docs/images/state-street-agent-architecture.svg)
 
@@ -185,6 +359,12 @@ From the repository root:
 pwsh .\scripts\deploy.ps1
 ```
 
+For the independent private VNet profile:
+
+```powershell
+pwsh .\scripts\deploy-vnet.ps1
+```
+
 The script finds Terraform on `PATH`. To use a specific executable:
 
 ```powershell
@@ -239,6 +419,8 @@ Copy-Item `
 | `model_capacity` | `10` | Global Standard capacity in thousands of tokens/minute |
 | `apim_sku_name` | `Developer_1` | APIM reference-environment SKU |
 | `allow_registry_token_fallback` | `false` | Explicitly permits the short-lived ACR token fallback for recognized authentication failures |
+| `legacy_interpreter_source_hash` | Deployed baseline hash | Prevents VNet-only interpreter changes from replacing the original Sandbox |
+| `legacy_browser_source_hash` | Deployed baseline hash | Prevents VNet-only browser changes from replacing the original fallback Sandbox |
 | `tags` | Application defaults | Additional Azure tags |
 
 Playwright Workspace is deployed separately in West US 3 because Central US
@@ -326,6 +508,11 @@ runtime environment.
 | `MCP_SERVER_URL` | No | Python MCP Sandbox endpoint |
 | `MCP_AUTH_TOKEN` | Yes | Python MCP bearer token |
 | `PLAYWRIGHT_CONNECTION_ID` | No | Foundry project connection for Playwright Workspace |
+| `PRIVATE_FOUNDRY_GATEWAY_ENDPOINT` | No | Internal Nginx endpoint used by the VNet profile |
+| `BROWSER_MCP_SERVER_URL` | No | Private Playwright MCP Sandbox endpoint |
+| `BROWSER_MCP_AUTH_TOKEN` | Yes | Private Playwright MCP bearer token |
+| `ENABLE_FOUNDRY_WEB_SEARCH` | No | Disabled in the VNet profile |
+| `ENABLE_SANDBOX_SEARCH` | No | Enables governed `search_craigslist` in the VNet profile |
 | `ENABLE_INSTRUMENTATION` | No | Enables Agent Framework telemetry |
 | `ENABLE_SENSITIVE_DATA` | No | Includes prompt/response content in telemetry when `true` |
 | `OTEL_TRACES_SAMPLER` | No | OpenTelemetry trace sampler |
@@ -343,6 +530,8 @@ python -m unittest discover -s tests -v
 pwsh .\scripts\smoke-test.ps1
 pwsh .\scripts\test-agent-streaming.ps1
 pwsh .\scripts\test-agent-tools.ps1
+pwsh .\scripts\test-vnet-network.ps1
+pwsh .\scripts\test-wslc.ps1
 ```
 
 Expected high-level results:
@@ -394,6 +583,21 @@ terraform -chdir=".\infrastructure\terraform" plan `
 ```
 
 Exit code `0` means no change; `2` means Terraform proposes a change.
+
+Check the private root separately:
+
+```powershell
+terraform -chdir=".\infrastructure\terraform-vnet" plan `
+  -detailed-exitcode `
+  -var="private_mode=true" `
+  -var="enable_sandbox_deployment=true" `
+  -var="allow_registry_token_fallback=true"
+```
+
+The legacy root pins its deployed interpreter and browser-fallback image hashes.
+Change `legacy_interpreter_source_hash` or `legacy_browser_source_hash` only
+when intentionally updating `ss-agent-day3`; VNet-only tool changes must not
+replace the original Sandboxes.
 
 ## Observability
 
@@ -469,10 +673,11 @@ For infrastructure, image, or agent changes, rerun:
 pwsh .\scripts\deploy.ps1
 ```
 
-The image tags are based on source content, so unchanged images are reused.
-Changed interpreter or browser-fallback content creates a new immutable image
-and Sandbox selection. Existing Sandboxes remain available until an operator
-explicitly removes them.
+The VNet image tags are based on source content, so unchanged images are
+reused and changed tool content creates a new immutable image/Sandbox. The
+original profile uses explicit legacy image-hash variables so VNet-only changes
+cannot replace the deployed `ss-agent-day3` Sandboxes. Update those variables
+only as part of an intentional legacy deployment change.
 
 To update only infrastructure/Sandbox resources:
 
@@ -553,6 +758,10 @@ access.
 This repository intentionally does not delete existing Sandbox resources during
 normal deployment or replacement. Cleanup must be an explicit operator action.
 
+That rule applies to both `ss-agent-day3` and `ss-agent-vnets`. The VNet helper
+creates or reuses labeled Sandboxes and disables auto-delete; it does not remove
+older browser or interpreter Sandboxes after an image update.
+
 Do not run a broad `terraform destroy` while the Sandbox Group contains
 resources you intend to preserve: deleting the ARM Sandbox Group can cascade to
 its data-plane Sandboxes and disks.
@@ -570,8 +779,8 @@ documented in [`ACA-TF-PLAN.md`](ACA-TF-PLAN.md).
 
 ## Platform limitations
 
-- The current Sandbox endpoint uses a public Sandbox port plus application
-  bearer authentication.
+- The original profile uses a public Sandbox port plus application bearer
+  authentication; the VNet profile uses a private Express environment.
 - Playwright Workspace is deployed in West US 3 because the resource is not
   offered in Central US.
 - Direct Azure CLI acquisition of a Playwright audience token is blocked by
@@ -579,6 +788,14 @@ documented in [`ACA-TF-PLAN.md`](ACA-TF-PLAN.md).
   that flow.
 - The browser MCP Sandbox remains deployed as a rollback path and is never
   deleted automatically.
+- The private profile still requires public Azure control-plane and Entra
+  authentication endpoints.
+- Craigslist search and browser navigation are controlled public-egress
+  exceptions; public-web targets cannot be private end-to-end.
+- Foundry-managed web search, Foundry-managed Browser Automation, and Work IQ
+  are not enabled in the strict private profile.
+- The private Nginx gateway is intentionally a transparent streaming proxy; it
+  does not reproduce APIM rate limits, token limits, or subscription products.
 - APIM Developer tier is suitable for a reference implementation but has no
   production SLA.
 - The long-lived Sandbox pattern is for demonstration; production should use
@@ -593,20 +810,26 @@ documented in [`ACA-TF-PLAN.md`](ACA-TF-PLAN.md).
 .
 |-- ACA-TF-PLAN.md             Planned migration into the ACA Terraform module
 |-- CONFIRM.md                 Manual end-to-end acceptance procedure
+|-- CONFIRM-vnet.md            Private VNet acceptance procedure
+|-- PLAN-vnet.md               Tactical VNet delivery plan
 |-- README.md
 |-- azure.yaml                 Hosted Agent deployment definition
+|-- deployments/
+|   `-- vnet/                  Separate VNet Hosted Agent azd profile
 |-- docs/
 |   `-- images/                Rendered architecture artwork
 |-- evaluation/                Optional Foundry evaluation cases
 |-- infrastructure/
 |   |-- terraform/             Active complete Azure deployment
+|   |-- terraform-vnet/        Parallel hub-and-spoke private deployment
 |   |-- observability/         Legacy Bicep reference
 |   `-- sandbox/               Legacy Bicep reference
 |-- scripts/                   Deployment, invocation, validation, and queries
 |-- src/
 |   |-- agent/                 Foundry Hosted Agent
-|   |-- browser/               Preserved ACA Playwright MCP fallback
-|   `-- interpreter/           ACA Sandbox Python MCP server
+|   |-- browser/               ACA Playwright MCP image
+|   |-- gateway/               Internal Nginx streaming gateway
+|   `-- interpreter/           ACA Sandbox Python/search MCP server
 `-- tests/                     Python executor unit tests
 ```
 

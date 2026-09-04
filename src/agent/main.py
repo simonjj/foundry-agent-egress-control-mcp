@@ -21,12 +21,15 @@ def required_environment(name: str) -> str:
     return value
 
 
+def environment_enabled(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.lower() in {"1", "true", "yes"}
+
+
 async def main() -> None:
-    sensitive_data_enabled = os.getenv("ENABLE_SENSITIVE_DATA", "false").lower() in {
-        "1",
-        "true",
-        "yes",
-    }
+    sensitive_data_enabled = environment_enabled("ENABLE_SENSITIVE_DATA", False)
     enable_instrumentation(enable_sensitive_data=sensitive_data_enabled)
 
     credential = DefaultAzureCredential()
@@ -39,43 +42,94 @@ async def main() -> None:
         )
 
     mcp_token = required_environment("MCP_AUTH_TOKEN")
+    allowed_python_tools = ["run_python"]
+    if environment_enabled("ENABLE_SANDBOX_SEARCH", False):
+        allowed_python_tools.append("search_craigslist")
+
     mcp_tool = MCPStreamableHTTPTool(
         name="sandbox_python",
         description=(
-            "An isolated Python 3.12 interpreter with network access restricted "
-            "by ACA Sandbox egress policy."
+            "An isolated Python 3.12 interpreter and optional Craigslist search "
+            "service with network access restricted by ACA Sandbox policy."
         ),
         url=required_environment("MCP_SERVER_URL"),
         header_provider=lambda _kwargs: {"Authorization": f"Bearer {mcp_token}"},
-        allowed_tools=["run_python"],
+        allowed_tools=allowed_python_tools,
         approval_mode="never_require",
         load_prompts=False,
         request_timeout=90,
         sse_read_timeout=120,
     )
-    gateway_key = required_environment("APIM_SUBSCRIPTION_KEY")
-    client = FoundryChatClient(
-        project_endpoint=required_environment("APIM_FOUNDRY_PROJECT_ENDPOINT"),
-        model=model_name,
-        credential=credential,
-        allow_preview=True,
-        default_headers={"Ocp-Apim-Subscription-Key": gateway_key},
+
+    project_endpoint = (
+        os.getenv("PRIVATE_FOUNDRY_GATEWAY_ENDPOINT")
+        or os.getenv("FOUNDRY_GATEWAY_ENDPOINT")
+        or required_environment("APIM_FOUNDRY_PROJECT_ENDPOINT")
     )
-    web_search_tool = FoundryChatClient.get_web_search_tool(
-        search_context_size="medium"
-    )
-    browser_tool = FoundryChatClient.get_browser_automation_tool(
-        connection_id=required_environment("PLAYWRIGHT_CONNECTION_ID")
-    ).as_dict()
+    client_options = {
+        "project_endpoint": project_endpoint,
+        "model": model_name,
+        "credential": credential,
+        "allow_preview": True,
+    }
+    gateway_key = os.getenv("APIM_SUBSCRIPTION_KEY")
+    if gateway_key:
+        client_options["default_headers"] = {
+            "Ocp-Apim-Subscription-Key": gateway_key
+        }
+    client = FoundryChatClient(**client_options)
+
+    tools = [mcp_tool]
+    browser_mode = "playwright-workspace"
+    browser_mcp_url = os.getenv("BROWSER_MCP_SERVER_URL")
+    browser_mcp_token = os.getenv("BROWSER_MCP_AUTH_TOKEN")
+    if browser_mcp_url or browser_mcp_token:
+        if not browser_mcp_url or not browser_mcp_token:
+            raise RuntimeError(
+                "BROWSER_MCP_SERVER_URL and BROWSER_MCP_AUTH_TOKEN must be set together."
+            )
+        tools.append(
+            MCPStreamableHTTPTool(
+                name="sandbox_browser",
+                description=(
+                    "Private Playwright browser automation hosted in ACA Sandbox."
+                ),
+                url=browser_mcp_url,
+                allowed_tools=[
+                    "browser_navigate",
+                    "browser_snapshot",
+                    "browser_tabs",
+                ],
+                header_provider=lambda _kwargs: {
+                    "Authorization": f"Bearer {browser_mcp_token}"
+                },
+                approval_mode="never_require",
+                load_prompts=False,
+                request_timeout=120,
+                sse_read_timeout=180,
+            )
+        )
+        browser_mode = "aca-sandbox-mcp"
+    else:
+        tools.append(
+            FoundryChatClient.get_browser_automation_tool(
+                connection_id=required_environment("PLAYWRIGHT_CONNECTION_ID")
+            ).as_dict()
+        )
+
+    if environment_enabled("ENABLE_FOUNDRY_WEB_SEARCH", True):
+        tools.append(
+            FoundryChatClient.get_web_search_tool(search_context_size="medium")
+        )
 
     instructions = """\
 You demonstrate a governed enterprise agent architecture by helping users find,
 inspect, and compare current Craigslist listings.
 
-Use web search for broad discovery and recent public-web information. Use
-browser automation when a result must be inspected interactively or a page
-depends on browser rendering. Use run_python for calculations, structured
-analysis, or minimal direct retrieval from approved craigslist.org hosts.
+Use web search or search_craigslist for broad discovery and recent public-web
+information. Use browser automation when a result must be inspected
+interactively or a page depends on browser rendering. Use run_python for
+calculations and structured analysis.
 
 Always include the URLs of listings used in the answer. Clearly distinguish
 search or listing claims from your own calculations. Browser automation is
@@ -88,13 +142,22 @@ data.
     with get_tracer().start_as_current_span("configure_craigslist_agent") as span:
         span.set_attribute("gen_ai.agent.name", "craigslist-agent")
         span.set_attribute("agent.tool.name", "sandbox_python")
-        span.set_attribute("agent.gateway", "azure-api-management")
+        span.set_attribute(
+            "agent.gateway",
+            (
+                "nginx-private"
+                if os.getenv("PRIVATE_FOUNDRY_GATEWAY_ENDPOINT")
+                or os.getenv("FOUNDRY_GATEWAY_ENDPOINT")
+                else "apim"
+            ),
+        )
+        span.set_attribute("agent.browser.mode", browser_mode)
         span.set_attribute("agent.sensitive_telemetry_enabled", sensitive_data_enabled)
         agent = Agent(
             client=client,
             name="craigslist-agent",
             instructions=instructions,
-            tools=[mcp_tool, browser_tool, web_search_tool],
+            tools=tools,
             default_options={"store": False},
         )
 

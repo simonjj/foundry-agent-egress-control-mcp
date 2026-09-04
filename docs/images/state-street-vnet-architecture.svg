@@ -1,0 +1,154 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">State Street private VNet Foundry agent architecture</title>
+  <desc id="desc">A rendered architecture showing a VNet-injected Foundry Hosted Agent, internal Nginx gateway, private Foundry and monitoring endpoints, and private ACA Sandbox tools with governed public-web egress.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07182e"/>
+      <stop offset="0.55" stop-color="#0b2c4e"/>
+      <stop offset="1" stop-color="#123f5c"/>
+    </linearGradient>
+    <linearGradient id="agent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f8cff"/>
+      <stop offset="1" stop-color="#7655ff"/>
+    </linearGradient>
+    <linearGradient id="tools" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#00a8a8"/>
+      <stop offset="1" stop-color="#007c91"/>
+    </linearGradient>
+    <linearGradient id="hub" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffb547"/>
+      <stop offset="1" stop-color="#e97827"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#00101d" flood-opacity="0.45"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#80d9ff"/>
+    </marker>
+    <marker id="arrowPublic" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#ffd166"/>
+    </marker>
+    <style>
+      .title { font: 700 38px "Segoe UI", Arial, sans-serif; fill: #f4fbff; }
+      .subtitle { font: 400 18px "Segoe UI", Arial, sans-serif; fill: #b9d7e8; }
+      .zone-title { font: 700 20px "Segoe UI", Arial, sans-serif; fill: #ffffff; }
+      .box-title { font: 700 19px "Segoe UI", Arial, sans-serif; fill: #ffffff; }
+      .box-copy { font: 400 14px "Segoe UI", Arial, sans-serif; fill: #d8ecf7; }
+      .small { font: 600 13px "Segoe UI", Arial, sans-serif; fill: #d8ecf7; }
+      .label { font: 600 14px "Segoe UI", Arial, sans-serif; fill: #9fe4ff; }
+      .public-label { font: 600 14px "Segoe UI", Arial, sans-serif; fill: #ffe19a; }
+      .zone { fill: #0c2945; stroke: #3d6f8e; stroke-width: 2; }
+      .card { stroke: rgba(255,255,255,0.35); stroke-width: 1.5; filter: url(#shadow); }
+      .flow { fill: none; stroke: #80d9ff; stroke-width: 4; marker-end: url(#arrow); }
+      .flow-dashed { fill: none; stroke: #80d9ff; stroke-width: 3; stroke-dasharray: 9 8; marker-end: url(#arrow); }
+      .public-flow { fill: none; stroke: #ffd166; stroke-width: 3; stroke-dasharray: 10 8; marker-end: url(#arrowPublic); }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <circle cx="1450" cy="80" r="230" fill="#2d7da0" opacity="0.12"/>
+  <circle cx="80" cy="920" r="260" fill="#7259ff" opacity="0.1"/>
+
+  <text x="70" y="68" class="title">State Street VNet-Isolated Foundry Agent</text>
+  <text x="70" y="102" class="subtitle">Hub-and-spoke private data plane with VNet-injected hosting, internal Nginx routing, and governed ACA Sandbox tools</text>
+
+  <rect x="55" y="135" width="1490" height="745" rx="28" class="zone"/>
+  <text x="85" y="175" class="zone-title">Customer network boundary - ss-agent-vnets</text>
+
+  <rect x="85" y="205" width="410" height="615" rx="24" fill="#122f57" stroke="#557dc9" stroke-width="2"/>
+  <text x="115" y="244" class="zone-title">Agent spoke - 10.62.0.0/16</text>
+  <rect x="120" y="280" width="340" height="205" rx="20" fill="url(#agent)" class="card"/>
+  <text x="150" y="324" class="box-title">Foundry Hosted Agent v7</text>
+  <text x="150" y="356" class="box-copy">Injected runtime subnet</text>
+  <text x="150" y="380" class="box-copy">Responses protocol with Entra identity</text>
+  <text x="150" y="404" class="box-copy">Agent Framework semantic tool routing</text>
+  <text x="150" y="428" class="box-copy">OpenTelemetry instrumentation</text>
+  <rect x="150" y="447" width="178" height="25" rx="12" fill="#19234f" opacity="0.75"/>
+  <text x="166" y="465" class="small">Public access: disabled</text>
+
+  <rect x="120" y="535" width="340" height="215" rx="20" fill="#1b4166" class="card"/>
+  <text x="150" y="578" class="box-title">Private application paths</text>
+  <text x="150" y="611" class="box-copy">Model requests: internal Nginx</text>
+  <text x="150" y="636" class="box-copy">Python: private MCP endpoint</text>
+  <text x="150" y="661" class="box-copy">Search: Sandbox Craigslist adapter</text>
+  <text x="150" y="686" class="box-copy">Browser: private Playwright MCP</text>
+  <text x="150" y="720" class="small">No managed web search or managed browser</text>
+
+  <rect x="550" y="205" width="460" height="615" rx="24" fill="#113a4c" stroke="#3caab4" stroke-width="2"/>
+  <text x="580" y="244" class="zone-title">Tools spoke - 10.63.0.0/16</text>
+
+  <rect x="590" y="280" width="380" height="150" rx="20" fill="url(#tools)" class="card"/>
+  <text x="620" y="322" class="box-title">Internal Nginx gateway</text>
+  <text x="620" y="352" class="box-copy">Private Container Apps environment</text>
+  <text x="620" y="377" class="box-copy">Preserves Entra authorization and SSE</text>
+  <text x="620" y="402" class="box-copy">No public ingress</text>
+
+  <rect x="590" y="470" width="180" height="245" rx="20" fill="#087f83" class="card"/>
+  <text x="615" y="510" class="box-title">Python MCP</text>
+  <text x="615" y="541" class="box-copy">ACA Sandbox</text>
+  <text x="615" y="566" class="box-copy">run_python</text>
+  <text x="615" y="591" class="box-copy">search_craigslist</text>
+  <text x="615" y="625" class="box-copy">Bearer auth</text>
+  <text x="615" y="650" class="box-copy">Default-deny egress</text>
+  <text x="615" y="686" class="small">VNet: tools-egress</text>
+
+  <rect x="790" y="470" width="180" height="245" rx="20" fill="#087f83" class="card"/>
+  <text x="815" y="510" class="box-title">Browser MCP</text>
+  <text x="815" y="541" class="box-copy">ACA Sandbox</text>
+  <text x="815" y="566" class="box-copy">Playwright Chromium</text>
+  <text x="815" y="591" class="box-copy">Read-only policy</text>
+  <text x="815" y="625" class="box-copy">Bearer auth</text>
+  <text x="815" y="650" class="box-copy">Allowlisted hosts</text>
+  <text x="815" y="686" class="small">VNet: tools-egress</text>
+
+  <rect x="1065" y="205" width="440" height="615" rx="24" fill="#493922" stroke="#e6a84d" stroke-width="2"/>
+  <text x="1095" y="244" class="zone-title">Hub and shared services - 10.60.0.0/16</text>
+
+  <rect x="1105" y="280" width="360" height="155" rx="20" fill="url(#hub)" class="card"/>
+  <text x="1135" y="321" class="box-title">Foundry private endpoint</text>
+  <text x="1135" y="351" class="box-copy">Project, model, and storage data plane</text>
+  <text x="1135" y="376" class="box-copy">Private DNS for services.ai/openai</text>
+  <text x="1135" y="401" class="box-copy">Public network access disabled</text>
+
+  <rect x="1105" y="475" width="170" height="185" rx="20" fill="#9b632d" class="card"/>
+  <text x="1130" y="515" class="box-title">Private ACR</text>
+  <text x="1130" y="547" class="box-copy">Immutable images</text>
+  <text x="1130" y="572" class="box-copy">Managed identity</text>
+  <text x="1130" y="597" class="box-copy">Public disabled</text>
+  <text x="1130" y="630" class="small">PE + private DNS</text>
+
+  <rect x="1295" y="475" width="170" height="185" rx="20" fill="#9b632d" class="card"/>
+  <text x="1320" y="515" class="box-title">Azure Monitor</text>
+  <text x="1320" y="547" class="box-copy">App Insights</text>
+  <text x="1320" y="572" class="box-copy">Log Analytics</text>
+  <text x="1320" y="597" class="box-copy">AMPLS</text>
+  <text x="1320" y="630" class="small">Private ingestion</text>
+
+  <rect x="1105" y="695" width="360" height="82" rx="18" fill="#6c4b28" class="card"/>
+  <text x="1135" y="729" class="box-title">Private DNS linked to every spoke</text>
+  <text x="1135" y="754" class="box-copy">Direct agent-tools peering avoids transitive routing assumptions</text>
+
+  <path d="M460 365 C520 365 535 355 590 355" class="flow"/>
+  <text x="480" y="338" class="label">model + SSE</text>
+
+  <path d="M970 355 C1035 355 1040 355 1105 355" class="flow"/>
+  <text x="982" y="330" class="label">private endpoint</text>
+
+  <path d="M460 610 C520 610 540 585 590 585" class="flow-dashed"/>
+  <text x="477" y="575" class="label">private MCP</text>
+
+  <path d="M460 670 C535 670 690 610 790 610" class="flow-dashed"/>
+  <text x="530" y="680" class="label">private MCP</text>
+
+  <path d="M1190 475 C1190 447 1020 430 935 430" class="flow-dashed"/>
+  <text x="1004" y="455" class="label">image pulls</text>
+
+  <path d="M395 485 C520 780 1170 820 1375 660" class="flow-dashed"/>
+  <text x="760" y="800" class="label">private telemetry ingestion</text>
+
+  <rect x="55" y="905" width="1490" height="60" rx="18" fill="#092239" stroke="#315d79"/>
+  <circle cx="95" cy="935" r="7" fill="#80d9ff"/>
+  <text x="115" y="941" class="small">Solid/dashed blue: private customer-network paths</text>
+  <path d="M510 935 L565 935" class="public-flow"/>
+  <text x="585" y="941" class="public-label">Controlled exception: outbound access only to approved public-web hosts and required Azure control-plane/Entra endpoints</text>
+</svg>

@@ -30,6 +30,7 @@ const playwright = spawn(
     "--headless",
     "--isolated",
     "--block-service-workers",
+    "--ignore-https-errors",
     "--browser",
     "chromium",
     "--host",

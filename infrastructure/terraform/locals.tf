@@ -18,21 +18,11 @@ locals {
     "/subscriptions/${var.subscription_id}/resourceGroups/${var.resource_group_name}/providers/Microsoft.ApiManagement/service/${local.apim_name}/subscriptions/state-street-hosted-agent"
   )
 
-  interpreter_source_hash = sha256(join("", [
-    filesha256("${path.module}/../../src/interpreter/Dockerfile"),
-    filesha256("${path.module}/../../src/interpreter/executor.py"),
-    filesha256("${path.module}/../../src/interpreter/requirements.txt"),
-    filesha256("${path.module}/../../src/interpreter/server.py"),
-  ]))
-  interpreter_image_tag = "tf-${substr(local.interpreter_source_hash, 0, 12)}"
-  mcp_token_fingerprint = substr(sha256(random_password.mcp_auth_token.result), 0, 12)
+  interpreter_source_hash = var.legacy_interpreter_source_hash
+  interpreter_image_tag   = "tf-${substr(local.interpreter_source_hash, 0, 12)}"
+  mcp_token_fingerprint   = substr(sha256(random_password.mcp_auth_token.result), 0, 12)
 
-  browser_source_hash = sha256(join("", [
-    filesha256("${path.module}/../../src/browser/Dockerfile"),
-    filesha256("${path.module}/../../src/browser/package-lock.json"),
-    filesha256("${path.module}/../../src/browser/package.json"),
-    filesha256("${path.module}/../../src/browser/server.mjs"),
-  ]))
+  browser_source_hash       = var.legacy_browser_source_hash
   browser_image_tag         = "tf-${substr(local.browser_source_hash, 0, 12)}"
   browser_token_fingerprint = substr(sha256(random_password.browser_mcp_auth_token.result), 0, 12)
 

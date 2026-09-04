@@ -9,6 +9,7 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev \
+    && ./node_modules/.bin/playwright-mcp install-browser chrome-for-testing \
     && npm cache clean --force
 
 COPY server.mjs ./
