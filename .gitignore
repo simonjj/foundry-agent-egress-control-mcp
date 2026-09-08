@@ -2,6 +2,7 @@
 .env
 .venv/
 .venv-vnet/
+.venv-tenant/
 node_modules/
 __pycache__/
 *.py[cod]

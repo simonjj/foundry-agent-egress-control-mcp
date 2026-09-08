@@ -5,7 +5,7 @@ import os
 from agent_framework import Agent, MCPStreamableHTTPTool
 from agent_framework.foundry import FoundryChatClient
 from agent_framework.observability import enable_instrumentation, get_tracer
-from agent_framework_foundry_hosting import ResponsesHostServer
+from agent_framework_foundry_hosting import FoundryToolbox, ResponsesHostServer
 from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
 
@@ -28,19 +28,7 @@ def environment_enabled(name: str, default: bool) -> bool:
     return value.lower() in {"1", "true", "yes"}
 
 
-async def main() -> None:
-    sensitive_data_enabled = environment_enabled("ENABLE_SENSITIVE_DATA", False)
-    enable_instrumentation(enable_sensitive_data=sensitive_data_enabled)
-
-    credential = DefaultAzureCredential()
-    model_name = os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME") or os.getenv(
-        "FOUNDRY_MODEL_NAME"
-    )
-    if not model_name:
-        raise RuntimeError(
-            "Set AZURE_AI_MODEL_DEPLOYMENT_NAME or FOUNDRY_MODEL_NAME."
-        )
-
+def build_direct_tools():
     mcp_token = required_environment("MCP_AUTH_TOKEN")
     allowed_python_tools = ["run_python"]
     if environment_enabled("ENABLE_SANDBOX_SEARCH", False):
@@ -53,31 +41,15 @@ async def main() -> None:
             "service with network access restricted by ACA Sandbox policy."
         ),
         url=required_environment("MCP_SERVER_URL"),
-        header_provider=lambda _kwargs: {"Authorization": f"Bearer {mcp_token}"},
+        header_provider=lambda _kwargs: {
+            "Authorization": f"Bearer {mcp_token}"
+        },
         allowed_tools=allowed_python_tools,
         approval_mode="never_require",
         load_prompts=False,
         request_timeout=90,
         sse_read_timeout=120,
     )
-
-    project_endpoint = (
-        os.getenv("PRIVATE_FOUNDRY_GATEWAY_ENDPOINT")
-        or os.getenv("FOUNDRY_GATEWAY_ENDPOINT")
-        or required_environment("APIM_FOUNDRY_PROJECT_ENDPOINT")
-    )
-    client_options = {
-        "project_endpoint": project_endpoint,
-        "model": model_name,
-        "credential": credential,
-        "allow_preview": True,
-    }
-    gateway_key = os.getenv("APIM_SUBSCRIPTION_KEY")
-    if gateway_key:
-        client_options["default_headers"] = {
-            "Ocp-Apim-Subscription-Key": gateway_key
-        }
-    client = FoundryChatClient(**client_options)
 
     tools = [mcp_tool]
     browser_mode = "playwright-workspace"
@@ -86,7 +58,8 @@ async def main() -> None:
     if browser_mcp_url or browser_mcp_token:
         if not browser_mcp_url or not browser_mcp_token:
             raise RuntimeError(
-                "BROWSER_MCP_SERVER_URL and BROWSER_MCP_AUTH_TOKEN must be set together."
+                "BROWSER_MCP_SERVER_URL and BROWSER_MCP_AUTH_TOKEN must be "
+                "set together."
             )
         tools.append(
             MCPStreamableHTTPTool(
@@ -122,14 +95,66 @@ async def main() -> None:
             FoundryChatClient.get_web_search_tool(search_context_size="medium")
         )
 
+    return tools, browser_mode
+
+
+async def main() -> None:
+    sensitive_data_enabled = environment_enabled("ENABLE_SENSITIVE_DATA", False)
+    enable_instrumentation(enable_sensitive_data=sensitive_data_enabled)
+
+    credential = DefaultAzureCredential()
+    model_name = os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME") or os.getenv(
+        "FOUNDRY_MODEL_NAME"
+    )
+    if not model_name:
+        raise RuntimeError(
+            "Set AZURE_AI_MODEL_DEPLOYMENT_NAME or FOUNDRY_MODEL_NAME."
+        )
+
+    project_endpoint = (
+        os.getenv("PRIVATE_FOUNDRY_GATEWAY_ENDPOINT")
+        or os.getenv("FOUNDRY_GATEWAY_ENDPOINT")
+        or required_environment("APIM_FOUNDRY_PROJECT_ENDPOINT")
+    )
+    client_options = {
+        "project_endpoint": project_endpoint,
+        "model": model_name,
+        "credential": credential,
+        "allow_preview": True,
+    }
+    gateway_key = os.getenv("APIM_SUBSCRIPTION_KEY")
+    if gateway_key:
+        client_options["default_headers"] = {
+            "Ocp-Apim-Subscription-Key": gateway_key
+        }
+    client = FoundryChatClient(**client_options)
+
+    toolbox_endpoint = os.getenv("TOOLBOX_ENDPOINT")
+    if toolbox_endpoint:
+        tools = FoundryToolbox(
+            credential,
+            url=toolbox_endpoint,
+            name=os.getenv("TOOLBOX_NAME") or "tenant_broker",
+            allowed_tools=["who_am_i"],
+            approval_mode="never_require",
+            load_prompts=False,
+            request_timeout=120,
+            sse_read_timeout=180,
+        )
+        browser_mode = "tenant-broker-toolbox"
+        primary_tool_name = "tenant_broker"
+    else:
+        tools, browser_mode = build_direct_tools()
+        primary_tool_name = "sandbox_python"
+
     instructions = """\
 You demonstrate a governed enterprise agent architecture by helping users find,
 inspect, and compare current Craigslist listings.
 
-Use web search or search_craigslist for broad discovery and recent public-web
-information. Use browser automation when a result must be inspected
-interactively or a page depends on browser rendering. Use run_python for
-calculations and structured analysis.
+Use the available governed tools for public-web discovery, browser inspection,
+Python calculations, and structured analysis. When a who_am_i tool is
+available, use it to demonstrate the calling user's delegated identity without
+exposing raw access tokens.
 
 Always include the URLs of listings used in the answer. Clearly distinguish
 search or listing claims from your own calculations. Browser automation is
@@ -141,7 +166,7 @@ data.
 
     with get_tracer().start_as_current_span("configure_craigslist_agent") as span:
         span.set_attribute("gen_ai.agent.name", "craigslist-agent")
-        span.set_attribute("agent.tool.name", "sandbox_python")
+        span.set_attribute("agent.tool.name", primary_tool_name)
         span.set_attribute(
             "agent.gateway",
             (
