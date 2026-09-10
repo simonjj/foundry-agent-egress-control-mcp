@@ -1,4 +1,4 @@
-# State Street Foundry Agent Reference Architecture
+# FSI Customer Scenario: Foundry Agent Reference Architecture
 
 This repository deploys a complete Microsoft Foundry Hosted Agent reference
 architecture with Terraform. It demonstrates governed model access through
