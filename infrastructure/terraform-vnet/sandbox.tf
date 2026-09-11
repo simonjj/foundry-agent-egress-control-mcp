@@ -112,9 +112,22 @@ resource "azurerm_role_assignment" "sandbox_registry_pull" {
   principal_type       = "ServicePrincipal"
 }
 
+resource "azurerm_role_assignment" "developer_sandbox_data_owner" {
+  scope                            = azapi_resource.sandbox_group.id
+  role_definition_name             = "Container Apps SandboxGroup Data Owner"
+  principal_id                     = data.azurerm_client_config.current.object_id
+  principal_type                   = "User"
+  skip_service_principal_aad_check = true
+}
+
 resource "time_sleep" "sandbox_registry_pull" {
   create_duration = "60s"
   depends_on      = [azurerm_role_assignment.sandbox_registry_pull]
+}
+
+resource "time_sleep" "developer_sandbox_data_owner" {
+  create_duration = "60s"
+  depends_on      = [azurerm_role_assignment.developer_sandbox_data_owner]
 }
 
 resource "terraform_data" "deploy_interpreter_sandbox" {
@@ -149,11 +162,14 @@ resource "terraform_data" "deploy_interpreter_sandbox" {
       "--disk-name 'python-interpreter-${local.interpreter_image_tag}'",
       "--token-fingerprint '${substr(sha256(random_password.mcp_token.result), 0, 16)}'",
       "--vnet-connection '${local.vnet_connection_name}'",
+      "--customer-id '${var.sandbox_customer_id}'",
+      "--craigslist-site '${var.sandbox_craigslist_site}'",
       "--profile 'code-interpreter'",
     ])
   }
 
   depends_on = [
+    time_sleep.developer_sandbox_data_owner,
     time_sleep.sandbox_registry_pull,
     terraform_data.build_interpreter_image,
   ]
@@ -191,11 +207,14 @@ resource "terraform_data" "deploy_browser_sandbox" {
       "--disk-name 'browser-mcp-${local.browser_image_tag}'",
       "--token-fingerprint '${substr(sha256(random_password.browser_mcp_token.result), 0, 16)}'",
       "--vnet-connection '${local.vnet_connection_name}'",
+      "--customer-id '${var.sandbox_customer_id}'",
+      "--craigslist-site '${var.sandbox_craigslist_site}'",
       "--profile 'browser'",
     ])
   }
 
   depends_on = [
+    time_sleep.developer_sandbox_data_owner,
     time_sleep.sandbox_registry_pull,
     terraform_data.build_browser_image,
   ]
@@ -214,6 +233,7 @@ data "external" "interpreter_sandbox" {
     sandbox_group_name = local.sandbox_group_name
     image_tag          = local.interpreter_image_tag
     token_fingerprint  = substr(sha256(random_password.mcp_token.result), 0, 16)
+    customer_id        = var.sandbox_customer_id
     port               = "8080"
   }
 
@@ -233,6 +253,7 @@ data "external" "browser_sandbox" {
     sandbox_group_name = local.sandbox_group_name
     image_tag          = local.browser_image_tag
     token_fingerprint  = substr(sha256(random_password.browser_mcp_token.result), 0, 16)
+    customer_id        = var.sandbox_customer_id
     port               = "8080"
   }
 

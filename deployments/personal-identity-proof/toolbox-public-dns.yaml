@@ -1,0 +1,8 @@
+name: personal-public-dns-proof
+description: Public DNS control using the Microsoft Learn MCP server.
+connections:
+  - name: mcp-learn
+metadata:
+  purpose: toolbox-public-dns-control
+  environment: personal-tenant
+  auth-path: none

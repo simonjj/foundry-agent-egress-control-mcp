@@ -2,6 +2,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import time
 from dataclasses import dataclass
@@ -19,7 +20,7 @@ from azure.containerapps.sandbox import (
     SandboxGroupClient,
     endpoint_for_region,
 )
-from azure.identity import DefaultAzureCredential
+from azure.identity import AzureCliCredential, DefaultAzureCredential
 
 
 @dataclass(frozen=True)
@@ -30,7 +31,17 @@ class Profile:
     allowed_hosts: list[str]
 
 
-def profile_for(name: str, token: str) -> Profile:
+def craigslist_hosts(site: str) -> list[str]:
+    return [
+        "craigslist.org",
+        f"{site}.craigslist.org",
+        "images.craigslist.org",
+        "www.craigslist.org",
+    ]
+
+
+def profile_for(name: str, token: str, craigslist_site: str) -> Profile:
+    allowed_hosts = craigslist_hosts(craigslist_site)
     if name == "browser":
         return Profile(
             component="browser-automation",
@@ -39,14 +50,11 @@ def profile_for(name: str, token: str) -> Profile:
                 "MCP_AUTH_TOKEN": token,
                 "MCP_PORT": "8080",
                 "PLAYWRIGHT_MCP_PORT": "8931",
+                "PLAYWRIGHT_ALLOWED_ORIGINS": ";".join(
+                    f"https://{host}" for host in allowed_hosts
+                ),
             },
-            allowed_hosts=[
-                "example.com",
-                "craigslist.org",
-                "*.craigslist.org",
-                "learn.microsoft.com",
-                "playwright.dev",
-            ],
+            allowed_hosts=allowed_hosts,
         )
     return Profile(
         component="code-interpreter",
@@ -56,11 +64,15 @@ def profile_for(name: str, token: str) -> Profile:
             "MCP_HOST": "0.0.0.0",
             "MCP_PORT": "8080",
         },
-        allowed_hosts=["craigslist.org", "*.craigslist.org"],
+        allowed_hosts=allowed_hosts,
     )
 
 
-def configuration_fingerprint(profile: Profile, vnet_connection: str) -> str:
+def configuration_fingerprint(
+    profile: Profile,
+    vnet_connection: str,
+    customer_id: str,
+) -> str:
     environment = {
         key: "__sensitive__" if key == "MCP_AUTH_TOKEN" else value
         for key, value in profile.environment.items()
@@ -73,6 +85,7 @@ def configuration_fingerprint(profile: Profile, vnet_connection: str) -> str:
         "allowed_hosts": profile.allowed_hosts,
         "port": 8080,
         "customer_vnet_connection_name": vnet_connection,
+        "customer_id": customer_id,
     }
     payload = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode()).hexdigest()[:16]
@@ -202,6 +215,8 @@ def main() -> None:
     parser.add_argument("--disk-name", required=True)
     parser.add_argument("--token-fingerprint", required=True)
     parser.add_argument("--vnet-connection", required=True)
+    parser.add_argument("--customer-id", required=True)
+    parser.add_argument("--craigslist-site", required=True)
     parser.add_argument(
         "--profile",
         choices=["code-interpreter", "browser"],
@@ -212,11 +227,16 @@ def main() -> None:
     token = os.environ.get("MCP_AUTH_TOKEN")
     if not token:
         raise RuntimeError("MCP_AUTH_TOKEN must be configured.")
+    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", args.customer_id):
+        raise ValueError("customer-id must be a lowercase DNS-style label.")
+    if not re.fullmatch(r"[a-z0-9-]{1,40}", args.craigslist_site):
+        raise ValueError("craigslist-site must be a valid Craigslist subdomain.")
 
-    profile = profile_for(args.profile, token)
+    profile = profile_for(args.profile, token, args.craigslist_site)
     config_fingerprint = configuration_fingerprint(
         profile,
         args.vnet_connection,
+        args.customer_id,
     )
     labels = {
         "application": "state-street-vnets",
@@ -224,10 +244,15 @@ def main() -> None:
         "version": args.image_tag,
         "token_fingerprint": args.token_fingerprint,
         "config_fingerprint": config_fingerprint,
+        "customer_id": args.customer_id,
     }
 
     endpoint = endpoint_for_region(args.location)
-    credential = DefaultAzureCredential()
+    credential = (
+        AzureCliCredential()
+        if os.getenv("AZURE_CONFIG_DIR")
+        else DefaultAzureCredential()
+    )
     client = SandboxGroupClient(
         endpoint,
         credential,

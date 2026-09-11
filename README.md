@@ -16,6 +16,14 @@ architectures with Terraform:
 > identity, and operational controls before using this design with production
 > or confidential data.
 
+## Tenant-aware MCP solution visuals
+
+The implemented delegated-identity and customer-specific Sandbox design is
+documented in two rendered architecture views:
+
+- [Components and runtime call flow](docs/tenant-aware-mcp-visuals.md#components-and-runtime-call-flow)
+- [Customer segmentation, authentication, and data/key flow](docs/tenant-aware-mcp-visuals.md#customer-segmentation-authentication-and-datakey-flow)
+
 ## Deployed environment
 
 | Item | Deployed value |
@@ -511,6 +519,9 @@ runtime environment.
 | `PRIVATE_FOUNDRY_GATEWAY_ENDPOINT` | No | Internal Nginx endpoint used by the VNet profile |
 | `BROWSER_MCP_SERVER_URL` | No | Private Playwright MCP Sandbox endpoint |
 | `BROWSER_MCP_AUTH_TOKEN` | Yes | Private Playwright MCP bearer token |
+| `TOOLBOX_ENDPOINT` | No | Foundry Toolbox MCP endpoint used for broker-backed tools |
+| `TOOLBOX_NAME` | No | Logical name assigned to the broker Toolbox tool source |
+| `TOOLBOX_ALLOWED_TOOLS` | No | Comma-separated allowlist of exact Toolbox tool names exposed to the agent |
 | `ENABLE_FOUNDRY_WEB_SEARCH` | No | Disabled in the VNet profile |
 | `ENABLE_SANDBOX_SEARCH` | No | Enables governed `search_craigslist` in the VNet profile |
 | `ENABLE_INSTRUMENTATION` | No | Enables Agent Framework telemetry |

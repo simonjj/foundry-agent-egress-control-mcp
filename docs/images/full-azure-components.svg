@@ -1,0 +1,320 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2100" height="1600" viewBox="0 0 2100 1600" role="img" aria-labelledby="title desc">
+  <title id="title">Tenant-aware MCP solution — Azure component architecture</title>
+  <desc id="desc">Deployed personal-tenant proof showing Microsoft Entra ID, hub-and-spoke VNets, Azure AI Foundry, an internal Nginx inference gateway, a private MCP broker, per-customer ACA Sandboxes, Azure Container Registry, and Azure Monitor.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#06172c"/>
+      <stop offset="0.55" stop-color="#0a2b49"/>
+      <stop offset="1" stop-color="#123f58"/>
+    </linearGradient>
+    <linearGradient id="entra" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3a4f78"/>
+      <stop offset="1" stop-color="#52739f"/>
+    </linearGradient>
+    <linearGradient id="agent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b5fc7"/>
+      <stop offset="1" stop-color="#7d55d9"/>
+    </linearGradient>
+    <linearGradient id="toolbox" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0078d4"/>
+      <stop offset="1" stop-color="#00a4ef"/>
+    </linearGradient>
+    <linearGradient id="broker" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c45418"/>
+      <stop offset="1" stop-color="#e38b24"/>
+    </linearGradient>
+    <linearGradient id="sandbox" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#008272"/>
+      <stop offset="1" stop-color="#00a68a"/>
+    </linearGradient>
+    <linearGradient id="segn" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6a43ad"/>
+      <stop offset="1" stop-color="#8358c9"/>
+    </linearGradient>
+    <linearGradient id="infra" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f4a63"/>
+      <stop offset="1" stop-color="#3f6485"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="7" stdDeviation="8" flood-color="#00101d" flood-opacity="0.42"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 z" fill="#86dcff"/>
+    </marker>
+    <marker id="arrowGold" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 z" fill="#ffd166"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 z" fill="#65e6ae"/>
+    </marker>
+    <marker id="arrowPink" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 z" fill="#ff8dc7"/>
+    </marker>
+    <marker id="arrowGray" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 z" fill="#9fb6c9"/>
+    </marker>
+    <style>
+      .title { font: 700 38px "Segoe UI", Arial, sans-serif; fill: #f7fcff; }
+      .subtitle { font: 400 18px "Segoe UI", Arial, sans-serif; fill: #bddced; }
+      .rglabel { font: 700 15px "Segoe UI", Arial, sans-serif; fill: #cfe6f3; letter-spacing: 0.4px; }
+      .vnet-title { font: 700 15px "Segoe UI", Arial, sans-serif; fill: #cdeeff; letter-spacing: 1px; }
+      .subzone { font: 700 13px "Segoe UI", Arial, sans-serif; fill: #bfe2f4; letter-spacing: 0.6px; }
+      .seg-title { font: 700 13.5px "Segoe UI", Arial, sans-serif; fill: #eaffff; letter-spacing: 0.6px; }
+      .card-title { font: 700 17px "Segoe UI", Arial, sans-serif; fill: #ffffff; }
+      .card-copy { font: 400 13px "Segoe UI", Arial, sans-serif; fill: #eaf5fb; }
+      .card-small { font: 600 11.5px "Segoe UI", Arial, sans-serif; fill: #d4ebf6; }
+      .chip-text { font: 700 12.5px "Segoe UI", Arial, sans-serif; fill: #eef8ff; }
+      .legend { font: 600 13px "Segoe UI", Arial, sans-serif; fill: #d4eaf5; }
+      .zone { fill: #0a233b; stroke: #376b89; stroke-width: 2; }
+      .rg { fill: #08203a; fill-opacity: 0.30; stroke: #5a86a6; stroke-width: 2; stroke-dasharray: 11 7; }
+      .subenv { fill: #0e2c46; stroke: #4b83a5; stroke-width: 1.6; stroke-dasharray: 6 5; }
+      .seg-personal { fill: #08312a; stroke: #2f9f88; stroke-width: 1.6; }
+      .seg-n { fill: #201338; stroke: #7a54c9; stroke-width: 1.6; }
+      .card { stroke: #ffffff; stroke-opacity: 0.22; stroke-width: 1.4; filter: url(#shadow); }
+      .card-hi { stroke: #ffd166; stroke-opacity: 0.9; stroke-width: 2; filter: url(#shadow); }
+      .chip { fill: #06203a; stroke-width: 1.4; }
+      .request { fill: none; stroke: #86dcff; stroke-width: 4; marker-end: url(#arrowBlue); }
+      .identity { fill: none; stroke: #ffd166; stroke-width: 4; marker-end: url(#arrowGold); }
+      .secret { fill: none; stroke: #ff8dc7; stroke-width: 3.5; marker-end: url(#arrowPink); }
+      .web { fill: none; stroke: #ffd166; stroke-width: 3; stroke-dasharray: 9 8; marker-end: url(#arrowGold); }
+      .infra-link { fill: none; stroke: #9fb6c9; stroke-width: 2.4; stroke-dasharray: 7 6; marker-end: url(#arrowGray); }
+      .telemetry { fill: none; stroke: #65e6ae; stroke-width: 2.6; stroke-dasharray: 9 7; marker-end: url(#arrowGreen); }
+    </style>
+  </defs>
+
+  <rect width="2100" height="1600" fill="url(#bg)"/>
+  <circle cx="1950" cy="55" r="240" fill="#2d7da0" opacity="0.12"/>
+  <circle cx="70" cy="1540" r="270" fill="#7454db" opacity="0.10"/>
+
+  <text x="64" y="60" class="title">Tenant-Aware MCP Solution — Azure Component Architecture</text>
+  <text x="64" y="94" class="subtitle">Deployed personal-tenant proof · hub-and-spoke VNets · private MCP broker with per-customer Sandbox isolation</text>
+
+  <!-- ENTRA BAND -->
+  <rect x="300" y="118" width="1760" height="98" rx="18" fill="url(#entra)" class="card"/>
+  <text x="322" y="152" class="vnet-title">MICROSOFT ENTRA ID — SHARED IDENTITY PLANE · tenant 1e520fc6…</text>
+  <rect x="322" y="168" width="336" height="32" rx="8" class="chip" stroke="#ffd166"/>
+  <text x="338" y="189" class="chip-text">Signs delegated token · RS256 / JWKS</text>
+  <rect x="674" y="168" width="304" height="32" rx="8" class="chip" stroke="#ffd166"/>
+  <text x="690" y="189" class="chip-text">Delegated scope: McpBroker.Invoke</text>
+  <rect x="994" y="168" width="556" height="32" rx="8" class="chip" stroke="#ffd166"/>
+  <text x="1010" y="189" class="chip-text">Broker app: ss-personal-tenant-aware-mcp-broker · aud api://e42bba39…</text>
+
+  <!-- CALLER -->
+  <rect x="60" y="560" width="210" height="150" rx="16" fill="url(#agent)" class="card"/>
+  <text x="80" y="596" class="card-title">Customer user</text>
+  <text x="80" y="626" class="card-copy">Signs in and grants</text>
+  <text x="80" y="648" class="card-copy">the broker scope</text>
+  <text x="80" y="682" class="card-small">tid + oid → entitlement</text>
+
+  <!-- RESOURCE GROUP -->
+  <rect x="300" y="240" width="1760" height="1250" rx="24" class="rg"/>
+  <text x="322" y="276" class="rglabel">RESOURCE GROUP  ss-agent-personal-vnets   ·   Subscription 90babfb4-0fe2-…   ·   centralus   ·   Terraform hub-spoke (Hub · Agent · Tools · Shared VNets, peered · private DNS linked)</text>
+
+  <!-- AGENT SPOKE -->
+  <rect x="320" y="300" width="500" height="610" rx="16" class="zone"/>
+  <text x="338" y="332" class="vnet-title">AGENT SPOKE VNet</text>
+  <text x="338" y="353" class="card-small">ss-personal-vnet-agent-vnet · agent injection subnet</text>
+
+  <rect x="340" y="366" width="460" height="104" rx="13" fill="url(#toolbox)" class="card"/>
+  <text x="360" y="396" class="card-title">Azure AI Foundry account</text>
+  <text x="360" y="420" class="card-copy">ss-personal-vnet-ai-v5y8fi</text>
+  <text x="360" y="444" class="card-small">AIServices · local auth disabled · agent VNet injection</text>
+
+  <rect x="340" y="482" width="460" height="52" rx="12" fill="url(#toolbox)" class="card"/>
+  <text x="360" y="514" class="card-title">Foundry project · ss-personal-vnet-project</text>
+
+  <rect x="340" y="546" width="460" height="66" rx="12" fill="url(#toolbox)" class="card-hi"/>
+  <text x="360" y="573" class="card-title">Project capability host · caphostproj (Agents)</text>
+  <text x="360" y="596" class="card-small">Activates the VNet / DataProxy tool path</text>
+
+  <rect x="340" y="624" width="460" height="50" rx="12" fill="url(#toolbox)" class="card"/>
+  <text x="360" y="655" class="card-title">Model deployment · gpt-5-mini</text>
+
+  <rect x="340" y="686" width="460" height="204" rx="13" fill="url(#agent)" class="card"/>
+  <text x="360" y="714" class="card-title">Hosted Agent  (version 11)</text>
+  <text x="360" y="738" class="card-copy">craigslist-agent-personal-identity-proof</text>
+  <text x="360" y="762" class="card-copy">Toolbox: personal-agent-oauth-proof:2</text>
+  <text x="360" y="786" class="card-copy">Connection: mcp-oauth (OAuth2, delegated)</text>
+  <text x="360" y="814" class="card-small">4 model-facing tools · who_am_i excluded</text>
+  <text x="360" y="836" class="card-small">customer_context · run_python ·</text>
+  <text x="360" y="856" class="card-small">search_craigslist · browse_url</text>
+
+  <!-- flow captions in open left area -->
+  <rect x="500" y="936" width="316" height="30" rx="8" class="chip" stroke="#86dcff"/>
+  <text x="516" y="956" class="chip-text">② all model inference → Nginx gateway</text>
+  <rect x="470" y="978" width="346" height="30" rx="8" class="chip" stroke="#ffd166"/>
+  <text x="486" y="998" class="chip-text">③ delegated token → broker (DataProxy)</text>
+
+  <!-- TOOLS SPOKE -->
+  <rect x="840" y="300" width="780" height="1160" rx="16" class="zone"/>
+  <text x="858" y="332" class="vnet-title">TOOLS SPOKE VNet · ss-personal-vnet-tools-vnet</text>
+
+  <!-- gateway ACA env -->
+  <rect x="858" y="348" width="744" height="360" rx="12" class="subenv"/>
+  <text x="876" y="374" class="subzone">ACA MANAGED ENVIRONMENT (internal LB) · ss-personal-vnet-gateway-env-v5y8fi</text>
+
+  <rect x="876" y="392" width="710" height="132" rx="12" fill="url(#toolbox)" class="card"/>
+  <text x="896" y="420" class="card-title">Internal Nginx inference gateway</text>
+  <text x="896" y="444" class="card-copy">ss-personal-vnet-gateway-v5y8fi · transparent streaming proxy</text>
+  <text x="896" y="468" class="card-copy">ALL model inference → Foundry account (private endpoint)</text>
+  <text x="896" y="500" class="card-small">identity: gateway-id (UAMI) · AcrPull</text>
+
+  <rect x="876" y="540" width="710" height="150" rx="12" fill="url(#broker)" class="card"/>
+  <text x="896" y="568" class="card-title">Private MCP broker · ss-personal-vnet-broker-v5y8fi</text>
+  <text x="896" y="592" class="card-copy">Validate RS256 token · scope · tenant   →   SHA256(tid:oid) → customer route</text>
+  <text x="896" y="616" class="card-copy">Resolve server-side route · inject per-route bearer key (never to model)</text>
+  <text x="896" y="646" class="card-small">identity: broker-id (UAMI) · secrets: entitlements + python/browser tokens</text>
+  <text x="896" y="668" class="card-small">env: ENTRA_TENANT_ID · ENTRA_AUDIENCE · McpBroker.Invoke · CUSTOMER_ROUTES_JSON</text>
+
+  <!-- express sandbox env -->
+  <rect x="858" y="724" width="744" height="716" rx="12" class="subenv"/>
+  <text x="876" y="750" class="subzone">ACA EXPRESS SANDBOX ENVIRONMENT (public access disabled) · ss-personal-vnet-sandbox-env-v5y8fi</text>
+  <text x="876" y="771" class="card-small">Sandbox Group ss-personal-vnet-sandbox-group-v5y8fi · VNet connection tools-egress · default-deny egress</text>
+
+  <!-- customer-personal -->
+  <rect x="876" y="788" width="710" height="300" rx="12" class="seg-personal"/>
+  <text x="896" y="814" class="seg-title">CUSTOMER SEGMENT · customer-personal — DEPLOYED</text>
+
+  <rect x="896" y="828" width="330" height="230" rx="12" fill="url(#sandbox)" class="card"/>
+  <text x="914" y="856" class="card-title">Dedicated Python Sandbox</text>
+  <text x="914" y="880" class="card-copy">id ffd11767-ae1f-…</text>
+  <text x="914" y="904" class="card-copy">run_python · search_craigslist</text>
+  <text x="914" y="930" class="card-small">bearer: CUSTOMER_PYTHON_MCP_TOKEN</text>
+  <text x="914" y="954" class="card-small">execution + output stay in segment</text>
+  <text x="914" y="978" class="card-small">image pulled from ACR (AcrPull)</text>
+
+  <rect x="1240" y="828" width="326" height="230" rx="12" fill="url(#sandbox)" class="card"/>
+  <text x="1258" y="856" class="card-title">Dedicated Browser Sandbox</text>
+  <text x="1258" y="880" class="card-copy">id 0f23c1bf-4614-…</text>
+  <text x="1258" y="904" class="card-copy">browse_url · headless Chromium</text>
+  <text x="1258" y="930" class="card-small">bearer: CUSTOMER_BROWSER_MCP_TOKEN</text>
+  <text x="1258" y="954" class="card-small">customer-specific host validation</text>
+  <text x="1258" y="978" class="card-small">image pulled from ACR (AcrPull)</text>
+
+  <!-- egress strip (shared by both segments) -->
+  <rect x="876" y="1100" width="710" height="50" rx="10" fill="url(#infra)" class="card"/>
+  <text x="896" y="1130" class="card-copy">Allowlisted web egress (per segment) → craigslist.org hosts only · default-deny</text>
+
+  <!-- customer-N -->
+  <rect x="876" y="1164" width="710" height="250" rx="12" class="seg-n"/>
+  <text x="896" y="1190" class="seg-title">CUSTOMER SEGMENT · customer-N — REPEATABLE ONBOARDING PATTERN</text>
+
+  <rect x="896" y="1204" width="330" height="186" rx="12" fill="url(#segn)" class="card"/>
+  <text x="914" y="1232" class="card-title">Separate Python Sandbox</text>
+  <text x="914" y="1256" class="card-copy">distinct endpoint + entitlement</text>
+  <text x="914" y="1280" class="card-copy">distinct Python bearer credential</text>
+  <text x="914" y="1312" class="card-small">independent egress policy</text>
+  <text x="914" y="1336" class="card-small">provision only when onboarded</text>
+
+  <rect x="1240" y="1204" width="326" height="186" rx="12" fill="url(#segn)" class="card"/>
+  <text x="1258" y="1232" class="card-title">Separate Browser Sandbox</text>
+  <text x="1258" y="1256" class="card-copy">distinct endpoint + entitlement</text>
+  <text x="1258" y="1280" class="card-copy">distinct browser bearer credential</text>
+  <text x="1258" y="1312" class="card-small">independent egress policy</text>
+  <text x="1258" y="1336" class="card-small">no access from customer-personal</text>
+
+  <!-- SHARED SERVICES SPOKE -->
+  <rect x="1640" y="300" width="420" height="456" rx="16" class="zone"/>
+  <text x="1658" y="332" class="vnet-title">SHARED-SERVICES SPOKE VNet</text>
+  <text x="1658" y="353" class="card-small">ss-personal-vnet-shared-vnet</text>
+
+  <rect x="1658" y="366" width="384" height="108" rx="12" fill="url(#infra)" class="card"/>
+  <text x="1678" y="396" class="card-title">Azure Container Registry</text>
+  <text x="1678" y="420" class="card-copy">sspersonalvnetacrv5y8fi</text>
+  <text x="1678" y="448" class="card-small">Immutable images · AcrPull via UAMIs</text>
+
+  <rect x="1658" y="486" width="384" height="108" rx="12" fill="url(#infra)" class="card"/>
+  <text x="1678" y="516" class="card-title">Azure Monitor</text>
+  <text x="1678" y="540" class="card-copy">Log Analytics · ss-personal-vnet-law-v5y8fi</text>
+  <text x="1678" y="562" class="card-copy">App Insights · ss-personal-vnet-appi-v5y8fi</text>
+
+  <rect x="1658" y="606" width="384" height="130" rx="12" fill="url(#infra)" class="card"/>
+  <text x="1678" y="636" class="card-title">User-assigned managed identities</text>
+  <text x="1678" y="660" class="card-copy">gateway-id · broker-id · sandbox-id</text>
+  <text x="1678" y="686" class="card-small">AcrPull on ACR</text>
+  <text x="1678" y="710" class="card-small">sandbox-id: SandboxGroup Data Owner</text>
+
+  <!-- HUB VNet -->
+  <rect x="1640" y="776" width="420" height="560" rx="16" class="zone"/>
+  <text x="1658" y="808" class="vnet-title">HUB VNet · ss-personal-vnet-hub-vnet</text>
+  <text x="1658" y="829" class="card-small">Central private endpoints · peered to all spokes</text>
+
+  <rect x="1658" y="842" width="384" height="84" rx="12" fill="url(#infra)" class="card"/>
+  <text x="1678" y="872" class="card-title">Private endpoint · Foundry account</text>
+  <text x="1678" y="896" class="card-small">privatelink.services.ai / openai / cognitive</text>
+
+  <rect x="1658" y="938" width="384" height="72" rx="12" fill="url(#infra)" class="card"/>
+  <text x="1678" y="968" class="card-title">Private endpoint · ACR</text>
+  <text x="1678" y="992" class="card-small">privatelink.azurecr.io</text>
+
+  <rect x="1658" y="1022" width="384" height="76" rx="12" fill="url(#infra)" class="card"/>
+  <text x="1678" y="1052" class="card-title">Private endpoint · Sandbox env</text>
+  <text x="1678" y="1076" class="card-small">privatelink.centralus.azurecontainerapps.io</text>
+
+  <rect x="1658" y="1126" width="384" height="184" rx="12" fill="url(#infra)" class="card"/>
+  <text x="1678" y="1156" class="card-copy">Private DNS zones linked to all VNets.</text>
+  <text x="1678" y="1182" class="card-copy">Foundry &amp; ACR currently public for the</text>
+  <text x="1678" y="1206" class="card-copy">active dev cycle; Terraform holds the</text>
+  <text x="1678" y="1230" class="card-copy">private desired state (lockdown on request).</text>
+
+  <!-- ================= FLOWS ================= -->
+  <!-- 1 caller -> hosted agent -->
+  <path class="request" d="M270,616 C 300,664 306,700 336,722"/>
+  <rect x="96" y="486" width="176" height="30" rx="8" class="chip" stroke="#86dcff"/>
+  <text x="112" y="506" class="chip-text">① sign-in + prompt</text>
+
+  <!-- 2 entra -> hosted agent (left gap) -->
+  <path class="identity" d="M328,216 C 312,430 312,640 338,748"/>
+  <rect x="150" y="438" width="176" height="30" rx="8" class="chip" stroke="#ffd166"/>
+  <text x="166" y="458" class="chip-text">delegated token</text>
+
+  <!-- 3 hosted agent -> nginx (inference) -->
+  <path class="request" d="M800,724 C 838,640 852,520 874,468"/>
+
+  <!-- 4 hosted agent -> broker (delegated token via DataProxy) -->
+  <path class="identity" d="M800,760 C 840,690 858,650 874,618"/>
+
+  <!-- 5 nginx -> foundry PE -->
+  <path class="identity" d="M1586,468 C 1636,600 1642,760 1658,864"/>
+
+  <!-- 6 broker -> python (down left margin) -->
+  <path class="secret" d="M900,690 C 866,730 866,880 896,922"/>
+  <rect x="900" y="700" width="182" height="26" rx="8" class="chip" stroke="#ff8dc7"/>
+  <text x="916" y="718" class="chip-text">④ python route + key</text>
+
+  <!-- 7 broker -> browser (down right margin) -->
+  <path class="secret" d="M1560,690 C 1596,730 1596,880 1566,922"/>
+  <rect x="1360" y="700" width="196" height="26" rx="8" class="chip" stroke="#ff8dc7"/>
+  <text x="1376" y="718" class="chip-text">⑤ browser route + key</text>
+
+  <!-- 8 egress (personal down, customer-N up, into shared strip) -->
+  <path class="web" d="M1061,1058 C 1061,1076 1061,1084 1061,1096"/>
+  <path class="web" d="M1403,1058 C 1403,1076 1403,1084 1403,1096"/>
+  <path class="web" d="M1061,1204 C 1061,1186 1061,1170 1061,1154"/>
+  <path class="web" d="M1403,1204 C 1403,1186 1403,1170 1403,1154"/>
+  <rect x="620" y="1096" width="196" height="30" rx="8" class="chip" stroke="#ffd166"/>
+  <text x="636" y="1116" class="chip-text">⑥ allowlisted egress</text>
+
+  <!-- 9 ACR -> gateway env (images) -->
+  <path class="infra-link" d="M1658,420 C 1626,420 1610,430 1588,438"/>
+
+  <!-- 10 ACR -> sandbox env (images) -->
+  <path class="infra-link" d="M1658,460 C 1630,560 1615,700 1600,726"/>
+
+  <!-- 11 gateway env -> monitor telemetry -->
+  <path class="telemetry" d="M1586,556 C 1616,552 1632,548 1656,542"/>
+
+  <!-- ================= LEGEND ================= -->
+  <line x1="80" y1="1528" x2="150" y2="1528" class="request"/>
+  <text x="162" y="1533" class="legend">runtime request / tool args</text>
+  <line x1="430" y1="1528" x2="500" y2="1528" class="identity"/>
+  <text x="512" y="1533" class="legend">delegated Entra token / model inference</text>
+  <line x1="900" y1="1528" x2="970" y2="1528" class="secret"/>
+  <text x="982" y="1533" class="legend">server-side route credential</text>
+  <line x1="1260" y1="1528" x2="1330" y2="1528" class="telemetry"/>
+  <text x="1342" y="1533" class="legend">telemetry (private link)</text>
+  <line x1="1600" y1="1528" x2="1670" y2="1528" class="infra-link"/>
+  <text x="1682" y="1533" class="legend">images / config (AcrPull)</text>
+  <line x1="80" y1="1560" x2="150" y2="1560" class="web"/>
+  <text x="162" y="1565" class="legend">allowlisted public-web egress</text>
+</svg>

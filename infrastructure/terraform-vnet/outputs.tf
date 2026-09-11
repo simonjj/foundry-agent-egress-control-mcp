@@ -22,6 +22,10 @@ output "foundry_gateway_endpoint" {
   value = "https://${azurerm_container_app.gateway.ingress[0].fqdn}"
 }
 
+output "identity_broker_endpoint" {
+  value = var.enable_identity_broker ? "https://${azurerm_container_app.broker[0].ingress[0].fqdn}/mcp" : null
+}
+
 output "foundry_agent_subnet_id" {
   value = azurerm_subnet.agent_injection.id
 }
@@ -36,6 +40,14 @@ output "sandbox_group_id" {
 
 output "sandbox_vnet_connection_name" {
   value = local.vnet_connection_name
+}
+
+output "sandbox_customer_id" {
+  value = var.sandbox_customer_id
+}
+
+output "sandbox_allowed_hosts" {
+  value = local.customer_craigslist_hosts
 }
 
 output "interpreter_sandbox_id" {

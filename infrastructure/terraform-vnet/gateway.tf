@@ -26,7 +26,13 @@ module "gateway_environment" {
   log_analytics_workspace_id     = azurerm_log_analytics_workspace.main.id
   infrastructure_subnet_id       = azurerm_subnet.gateway_environment.id
   internal_load_balancer_enabled = true
-  tags                           = local.common_tags
+  workload_profile = [{
+    name                  = "Consumption"
+    workload_profile_type = "Consumption"
+    minimum_count         = 0
+    maximum_count         = 0
+  }]
+  tags = local.common_tags
 }
 
 resource "azurerm_private_dns_zone" "gateway" {
@@ -69,6 +75,7 @@ resource "azurerm_container_app" "gateway" {
   container_app_environment_id = module.gateway_environment.id
   resource_group_name          = azurerm_resource_group.main.name
   revision_mode                = "Single"
+  workload_profile_name        = "Consumption"
   tags                         = local.common_tags
 
   identity {

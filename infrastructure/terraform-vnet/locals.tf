@@ -18,9 +18,11 @@ locals {
   log_analytics_name    = "${var.prefix}-law-${local.suffix}"
   app_insights_name     = "${var.prefix}-appi-${local.suffix}"
   gateway_identity_name = "${var.prefix}-gateway-id-${local.suffix}"
+  broker_identity_name  = "${var.prefix}-broker-id-${local.suffix}"
   sandbox_identity_name = "${var.prefix}-sandbox-id-${local.suffix}"
   gateway_env_name      = "${var.prefix}-gateway-env-${local.suffix}"
   gateway_app_name      = "${var.prefix}-gateway-${local.suffix}"
+  broker_app_name       = "${var.prefix}-broker-${local.suffix}"
   express_env_name      = "${var.prefix}-sandbox-env-${local.suffix}"
   sandbox_group_name    = "${var.prefix}-sandbox-group-${local.suffix}"
   vnet_connection_name  = "tools-egress"
@@ -41,6 +43,13 @@ locals {
     "../../src/gateway/Dockerfile",
     "../../src/gateway/default.conf.template",
   ]
+  broker_source_files = [
+    "../../src/broker/Dockerfile",
+    "../../src/broker/requirements.txt",
+    "../../src/broker/server.py",
+    "../../src/broker/auth_diagnostics.py",
+    "../../src/broker/routing.py",
+  ]
 
   interpreter_image_tag = substr(
     sha256(join("", [for file in local.interpreter_source_files : filesha256(file)])),
@@ -54,6 +63,11 @@ locals {
   )
   gateway_image_tag = substr(
     sha256(join("", [for file in local.gateway_source_files : filesha256(file)])),
+    0,
+    16,
+  )
+  broker_image_tag = substr(
+    sha256(join("", [for file in local.broker_source_files : filesha256(file)])),
     0,
     16,
   )
@@ -97,4 +111,12 @@ locals {
   interpreter_image = "${azurerm_container_registry.main.login_server}/python-interpreter:${local.interpreter_image_tag}"
   browser_image     = "${azurerm_container_registry.main.login_server}/browser-mcp:${local.browser_image_tag}"
   gateway_image     = "${azurerm_container_registry.main.login_server}/foundry-gateway:${local.gateway_image_tag}"
+  broker_image      = "${azurerm_container_registry.main.login_server}/tenant-mcp-broker:${local.broker_image_tag}"
+
+  customer_craigslist_hosts = [
+    "craigslist.org",
+    "${var.sandbox_craigslist_site}.craigslist.org",
+    "images.craigslist.org",
+    "www.craigslist.org",
+  ]
 }

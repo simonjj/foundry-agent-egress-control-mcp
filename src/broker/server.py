@@ -1,10 +1,13 @@
 import asyncio
 import contextvars
 import json
+import logging
 import os
 from collections.abc import Awaitable, Callable
+from datetime import timedelta
 from typing import Any
 
+import httpx
 import jwt
 import uvicorn
 from jwt import PyJWKClient
@@ -12,7 +15,16 @@ from jwt.exceptions import (
     InvalidAlgorithmError,
     InvalidTokenError,
 )
+from auth_diagnostics import AuthenticationError, log_authentication_failure
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
 from mcp.server.fastmcp import FastMCP
+from routing import (
+    CustomerRoute,
+    CustomerRouter,
+    require_allowed_craigslist_site,
+    require_allowed_https_url,
+)
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import Message, Receive, Scope, Send
@@ -41,6 +53,11 @@ UNKNOWN_KID_CACHE_SECONDS = 30
 UNKNOWN_KID_CACHE_LIMIT = 128
 JWKS_REFRESH_LOCK = asyncio.Lock()
 JWT_VALIDATION_LIMIT = asyncio.Semaphore(16)
+SANDBOX_CALL_LIMIT = asyncio.Semaphore(16)
+SANDBOX_REQUEST_TIMEOUT_SECONDS = 120
+SANDBOX_SSE_TIMEOUT_SECONDS = 180
+ROUTER = CustomerRouter.from_environment()
+LOGGER = logging.getLogger("broker.routing")
 
 _signing_keys: dict[str, Any] = {}
 _signing_keys_expires_at = 0.0
@@ -73,11 +90,11 @@ class JwksUnavailableError(RuntimeError):
 
 def _extract_token(authorization: str) -> tuple[str, str]:
     if not authorization.startswith("Bearer "):
-        raise PermissionError("A bearer token is required.")
+        raise AuthenticationError("missing_bearer")
 
     token = authorization.removeprefix("Bearer ").strip()
     if not token or len(token) > 8192:
-        raise PermissionError("The bearer token is invalid.")
+        raise AuthenticationError("invalid_bearer")
 
     header = jwt.get_unverified_header(token)
     if header.get("alg") != "RS256":
@@ -212,6 +229,85 @@ def current_claims() -> dict[str, Any]:
     return claims
 
 
+def current_customer_route() -> CustomerRoute:
+    return ROUTER.resolve(current_claims())
+
+
+def _result_payload(result: Any) -> dict[str, Any]:
+    if result.isError:
+        raise RuntimeError("The selected Sandbox tool returned an error.")
+    return result.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+
+async def _call_sandbox_tools(
+    route: CustomerRoute,
+    sandbox_type: str,
+    calls: list[tuple[str, dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    if sandbox_type == "python":
+        endpoint = route.python_mcp_url
+        token = route.python_token
+    elif sandbox_type == "browser":
+        endpoint = route.browser_mcp_url
+        token = route.browser_token
+    else:
+        raise ValueError("Unsupported Sandbox type.")
+
+    timeout = httpx.Timeout(
+        SANDBOX_REQUEST_TIMEOUT_SECONDS,
+        connect=10,
+        read=SANDBOX_SSE_TIMEOUT_SECONDS,
+        write=30,
+        pool=10,
+    )
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "User-Agent": "state-street-tenant-aware-broker/1.0",
+    }
+    LOGGER.info(
+        "sandbox_route_started customer_id=%s sandbox_type=%s tools=%s",
+        route.customer_id,
+        sandbox_type,
+        ",".join(name for name, _ in calls),
+    )
+    async with SANDBOX_CALL_LIMIT:
+        async with httpx.AsyncClient(
+            headers=headers,
+            timeout=timeout,
+            follow_redirects=False,
+        ) as http_client:
+            async with streamable_http_client(
+                endpoint,
+                http_client=http_client,
+            ) as (read_stream, write_stream, _):
+                async with ClientSession(
+                    read_stream,
+                    write_stream,
+                    read_timeout_seconds=timedelta(
+                        seconds=SANDBOX_SSE_TIMEOUT_SECONDS
+                    ),
+                ) as session:
+                    await session.initialize()
+                    results = [
+                        _result_payload(
+                            await session.call_tool(
+                                name,
+                                arguments,
+                                read_timeout_seconds=timedelta(
+                                    seconds=SANDBOX_SSE_TIMEOUT_SECONDS
+                                ),
+                            )
+                        )
+                        for name, arguments in calls
+                    ]
+    LOGGER.info(
+        "sandbox_route_completed customer_id=%s sandbox_type=%s",
+        route.customer_id,
+        sandbox_type,
+    )
+    return results
+
+
 @mcp.tool()
 async def who_am_i() -> dict[str, Any]:
     """Return non-sensitive identity claims for the OAuth proof gate."""
@@ -224,6 +320,90 @@ async def who_am_i() -> dict[str, Any]:
         "scp": claims["scp"],
         "sub": claims["sub"],
         "tid": claims["tid"],
+    }
+
+
+@mcp.tool()
+async def customer_context() -> dict[str, Any]:
+    """Return the customer route selected from the validated delegated identity."""
+
+    route = current_customer_route()
+    return {
+        "customer_id": route.customer_id,
+        "allowed_hosts": list(route.allowed_hosts),
+    }
+
+
+@mcp.tool()
+async def run_python(
+    code: str,
+    timeout_seconds: int = 30,
+) -> dict[str, Any]:
+    """Run Python in the Sandbox assigned to the authenticated customer."""
+
+    if not code.strip():
+        raise ValueError("code must not be empty.")
+    if len(code) > 100_000:
+        raise ValueError("code must be at most 100000 characters.")
+    if not 1 <= timeout_seconds <= 60:
+        raise ValueError("timeout_seconds must be between 1 and 60.")
+
+    route = current_customer_route()
+    results = await _call_sandbox_tools(
+        route,
+        "python",
+        [("run_python", {"code": code, "timeout_seconds": timeout_seconds})],
+    )
+    return results[0]
+
+
+@mcp.tool()
+async def search_craigslist(
+    query: str,
+    site: str,
+    limit: int = 10,
+) -> dict[str, Any]:
+    """Search the customer-approved Craigslist site through its Sandbox."""
+
+    if not query.strip():
+        raise ValueError("query must not be empty.")
+    if len(query) > 200:
+        raise ValueError("query must be at most 200 characters.")
+    if not 1 <= limit <= 20:
+        raise ValueError("limit must be between 1 and 20.")
+
+    route = current_customer_route()
+    allowed_site = require_allowed_craigslist_site(site, route.allowed_hosts)
+    results = await _call_sandbox_tools(
+        route,
+        "python",
+        [
+            (
+                "search_craigslist",
+                {"query": query, "site": allowed_site, "limit": limit},
+            )
+        ],
+    )
+    return results[0]
+
+
+@mcp.tool()
+async def browse_url(url: str) -> dict[str, Any]:
+    """Navigate to an approved HTTPS URL and return a browser snapshot."""
+
+    route = current_customer_route()
+    allowed_url = require_allowed_https_url(url, route.allowed_hosts)
+    navigation, snapshot = await _call_sandbox_tools(
+        route,
+        "browser",
+        [
+            ("browser_navigate", {"url": allowed_url}),
+            ("browser_snapshot", {}),
+        ],
+    )
+    return {
+        "navigation": navigation,
+        "snapshot": snapshot,
     }
 
 
@@ -245,8 +425,9 @@ class EntraBearerMiddleware:
             key.decode("latin-1").lower(): value.decode("latin-1")
             for key, value in scope.get("headers", [])
         }
+        authorization = headers.get("authorization", "")
         try:
-            claims = await validated_claims(headers.get("authorization", ""))
+            claims = await validated_claims(authorization)
         except JwksUnavailableError:
             body = json.dumps({"error": "service_unavailable"}).encode("utf-8")
             await send(
@@ -268,7 +449,12 @@ class EntraBearerMiddleware:
             )
             return
         except (jwt.PyJWTError, PermissionError, ValueError) as error:
-            del error
+            log_authentication_failure(
+                error,
+                scope.get("method", ""),
+                scope.get("path", ""),
+                authorization,
+            )
             body = json.dumps({"error": "unauthorized"}).encode("utf-8")
             await send(
                 {

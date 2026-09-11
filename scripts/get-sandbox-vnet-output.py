@@ -12,6 +12,7 @@ def main() -> None:
         "component": query["component"],
         "version": query["image_tag"],
         "token_fingerprint": query["token_fingerprint"],
+        "customer_id": query["customer_id"],
     }
     client = SandboxGroupClient(
         endpoint_for_region(query["location"]),

@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$Registry,
-    [Parameter(Mandatory)][string]$ImageTag
+    [Parameter(Mandatory)][string]$ImageTag,
+    [string]$BuildRoot = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,9 +16,10 @@ if ($ImageTag -notmatch '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$') {
 
 $root = Split-Path $PSScriptRoot -Parent
 $source = Join-Path $root "src\broker"
-$buildRoot = [IO.Path]::GetFullPath(
-    (Join-Path $root "infrastructure\terraform-tenant\.terraform\build")
-)
+if (-not $BuildRoot) {
+    $BuildRoot = Join-Path $root "infrastructure\terraform-vnet\.terraform\build"
+}
+$buildRoot = [IO.Path]::GetFullPath($BuildRoot)
 $buildRootPrefix = $buildRoot.TrimEnd(
     [IO.Path]::DirectorySeparatorChar,
     [IO.Path]::AltDirectorySeparatorChar
@@ -36,7 +38,13 @@ if (Test-Path -LiteralPath $staging) {
 New-Item -ItemType Directory -Path $staging -Force | Out-Null
 
 try {
-    foreach ($file in @("Dockerfile", "requirements.txt", "server.py")) {
+    foreach ($file in @(
+        "Dockerfile",
+        "requirements.txt",
+        "server.py",
+        "auth_diagnostics.py",
+        "routing.py"
+    )) {
         Copy-Item `
             -LiteralPath (Join-Path $source $file) `
             -Destination (Join-Path $staging $file)

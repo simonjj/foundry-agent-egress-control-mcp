@@ -1,0 +1,8 @@
+name: personal-agent-oauth-proof
+description: Personal-tenant OAuth2 proof against the private MCP broker.
+connections:
+  - name: mcp-oauth
+metadata:
+  purpose: delegated-identity-proof
+  environment: personal-tenant
+  auth-path: oauth2

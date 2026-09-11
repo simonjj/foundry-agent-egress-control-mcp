@@ -1,0 +1,220 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1260" viewBox="0 0 1800 1260" role="img" aria-labelledby="title desc">
+  <title id="title">Tenant-aware MCP customer segmentation, authentication, and key flow</title>
+  <desc id="desc">Security architecture showing shared Foundry services, delegated OAuth token validation, hashed identity entitlements, server-side route credentials, and isolated per-customer Python and browser Sandboxes.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#06162b"/>
+      <stop offset="0.6" stop-color="#0c2e4b"/>
+      <stop offset="1" stop-color="#153b55"/>
+    </linearGradient>
+    <linearGradient id="shared" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4d58bd"/>
+      <stop offset="1" stop-color="#1779bd"/>
+    </linearGradient>
+    <linearGradient id="trust" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#bc501b"/>
+      <stop offset="1" stop-color="#dd8a24"/>
+    </linearGradient>
+    <linearGradient id="customerA" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#087f6f"/>
+      <stop offset="1" stop-color="#0aa18a"/>
+    </linearGradient>
+    <linearGradient id="customerN" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#674391"/>
+      <stop offset="1" stop-color="#8b5cb8"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#00101d" flood-opacity="0.48"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#84d9ff"/>
+    </marker>
+    <marker id="arrowGold" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#ffd166"/>
+    </marker>
+    <marker id="arrowPink" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#ff86c8"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#62e4aa"/>
+    </marker>
+    <marker id="arrowGray" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#9fb7c8"/>
+    </marker>
+    <style>
+      .title { font: 700 40px "Segoe UI", Arial, sans-serif; fill: #f7fcff; }
+      .subtitle { font: 400 19px "Segoe UI", Arial, sans-serif; fill: #bddced; }
+      .section { font: 700 17px "Segoe UI", Arial, sans-serif; fill: #cceeff; letter-spacing: 1.4px; }
+      .card-title { font: 700 19px "Segoe UI", Arial, sans-serif; fill: #ffffff; }
+      .card-copy { font: 400 14px "Segoe UI", Arial, sans-serif; fill: #e4f2f8; }
+      .card-small { font: 600 12px "Segoe UI", Arial, sans-serif; fill: #d4eaf4; }
+      .mono { font: 600 13px Consolas, "Courier New", monospace; fill: #ffffff; }
+      .label { font: 600 13px "Segoe UI", Arial, sans-serif; fill: #dff5ff; }
+      .legend { font: 600 13px "Segoe UI", Arial, sans-serif; fill: #d4eaf5; }
+      .zone { fill: #09243d; stroke: #3b6c88; stroke-width: 2; }
+      .card { stroke: #ffffff; stroke-opacity: 0.27; stroke-width: 1.5; filter: url(#shadow); }
+      .data { fill: none; stroke: #84d9ff; stroke-width: 4; marker-end: url(#arrowBlue); }
+      .token { fill: none; stroke: #ffd166; stroke-width: 4; marker-end: url(#arrowGold); }
+      .key { fill: none; stroke: #ff86c8; stroke-width: 3.5; marker-end: url(#arrowPink); }
+      .result { fill: none; stroke: #62e4aa; stroke-width: 4; stroke-dasharray: 10 8; marker-end: url(#arrowGreen); }
+      .control { fill: none; stroke: #9fb7c8; stroke-width: 3; stroke-dasharray: 8 8; marker-end: url(#arrowGray); }
+    </style>
+  </defs>
+
+  <rect width="1800" height="1260" fill="url(#bg)"/>
+  <circle cx="1645" cy="85" r="260" fill="#2d7da0" opacity="0.11"/>
+  <circle cx="95" cy="1190" r="280" fill="#7950cc" opacity="0.10"/>
+
+  <text x="68" y="65" class="title">Customer Segmentation, Authentication, and Data/Key Flow</text>
+  <text x="68" y="101" class="subtitle">Identity chooses the route; the model never chooses a customer, endpoint, or credential</text>
+
+  <rect x="45" y="140" width="1710" height="280" rx="26" class="zone"/>
+  <text x="75" y="177" class="section">SHARED EXPERIENCE AND IDENTITY PLANE</text>
+
+  <rect x="78" y="218" width="225" height="145" rx="19" fill="#29475f" class="card"/>
+  <text x="108" y="260" class="card-title">Customer user</text>
+  <text x="108" y="291" class="card-copy">Signs in and grants</text>
+  <text x="108" y="315" class="card-copy">delegated broker scope</text>
+  <text x="108" y="343" class="card-small">tid + oid identify entitlement</text>
+
+  <rect x="360" y="205" width="275" height="175" rx="20" fill="url(#shared)" class="card"/>
+  <text x="393" y="249" class="card-title">Shared Hosted Agent</text>
+  <text x="393" y="280" class="card-copy">Conversation and model runtime</text>
+  <text x="393" y="305" class="card-copy">Four allowed Toolbox functions</text>
+  <text x="393" y="330" class="card-copy">No route table or customer key</text>
+  <text x="393" y="355" class="card-small">Same deployment for all customers</text>
+
+  <rect x="695" y="195" width="330" height="195" rx="20" fill="#0878bd" class="card"/>
+  <text x="730" y="238" class="card-title">OAuth2 Foundry Toolbox</text>
+  <text x="730" y="269" class="card-copy">Connection: mcp-oauth</text>
+  <text x="730" y="294" class="card-copy">Per-user consent and token acquisition</text>
+  <text x="730" y="319" class="card-copy">Capability host selects private path</text>
+  <rect x="730" y="339" width="260" height="31" rx="12" fill="#05588d"/>
+  <text x="747" y="360" class="card-small">OAuth client config stays in Foundry</text>
+
+  <rect x="1090" y="205" width="265" height="175" rx="20" fill="#215d91" class="card"/>
+  <text x="1122" y="249" class="card-title">Microsoft Entra ID</text>
+  <text x="1122" y="280" class="card-copy">Signs delegated access token</text>
+  <text x="1122" y="305" class="card-copy">Broker application audience</text>
+  <text x="1122" y="330" class="card-copy">Required delegated scope</text>
+  <text x="1122" y="355" class="card-small">RS256 keys published through JWKS</text>
+
+  <rect x="1415" y="205" width="300" height="175" rx="20" fill="#263e53" class="card"/>
+  <text x="1448" y="249" class="card-title">Model-visible surface</text>
+  <text x="1448" y="280" class="card-copy">Tool schemas and returned content</text>
+  <text x="1448" y="305" class="card-copy">No raw identity claims in prompts</text>
+  <text x="1448" y="330" class="card-copy">No Sandbox URLs or bearer keys</text>
+  <text x="1448" y="355" class="card-small">who_am_i excluded from v11</text>
+
+  <path d="M303 286 H360" class="data"/>
+  <text x="307" y="267" class="label">prompt</text>
+  <path d="M635 286 H695" class="data"/>
+  <text x="646" y="267" class="label">tool call</text>
+  <path d="M1090 250 C1050 230 1035 230 1000 250" class="control"/>
+  <text x="1017" y="209" class="label">OAuth metadata / JWKS</text>
+  <path d="M1025 318 C1080 348 1090 348 1135 318" class="token"/>
+  <text x="1015" y="378" class="label">delegated broker token</text>
+  <path d="M1025 286 C1190 420 1385 420 1450 360" class="result"/>
+
+  <rect x="45" y="455" width="1710" height="335" rx="26" class="zone"/>
+  <text x="75" y="493" class="section">PRIVATE MCP BROKER - AUTHORIZATION AND ROUTE DECISION</text>
+
+  <rect x="80" y="535" width="330" height="205" rx="20" fill="url(#trust)" class="card"/>
+  <text x="114" y="578" class="card-title">1. Validate delegated token</text>
+  <text x="114" y="610" class="card-copy">RS256 signature and signing key</text>
+  <text x="114" y="635" class="card-copy">issuer, audience, exp, iat</text>
+  <text x="114" y="660" class="card-copy">required scope and tenant</text>
+  <text x="114" y="685" class="card-copy">non-empty user object ID</text>
+  <text x="114" y="717" class="card-small">Any validation failure stops here</text>
+
+  <rect x="460" y="535" width="330" height="205" rx="20" fill="#b9631f" class="card"/>
+  <text x="494" y="578" class="card-title">2. Derive entitlement key</text>
+  <text x="494" y="614" class="mono">SHA256(tid + ":" + oid)</text>
+  <text x="494" y="648" class="card-copy">Lookup hash -> customer ID</text>
+  <text x="494" y="673" class="card-copy">Raw IDs are not stored in routing config</text>
+  <text x="494" y="698" class="card-copy">Unknown hash is denied</text>
+  <text x="494" y="724" class="card-small">Current mapping -> customer-personal</text>
+
+  <rect x="840" y="520" width="415" height="235" rx="20" fill="#a94b19" class="card"/>
+  <text x="875" y="563" class="card-title">3. Resolve server-side route</text>
+  <text x="875" y="596" class="mono">CUSTOMER_ROUTES_JSON</text>
+  <text x="875" y="626" class="card-copy">Python MCP URL + token environment name</text>
+  <text x="875" y="651" class="card-copy">Browser MCP URL + token environment name</text>
+  <text x="875" y="676" class="card-copy">Customer-specific allowed HTTPS hosts</text>
+  <text x="875" y="701" class="card-copy">Every entitlement must have a route</text>
+  <text x="875" y="728" class="card-small">The broker, never the model, selects this record</text>
+
+  <rect x="1305" y="520" width="410" height="235" rx="20" fill="#782d52" class="card"/>
+  <text x="1340" y="563" class="card-title">4. Read isolated route credentials</text>
+  <text x="1340" y="596" class="mono">CUSTOMER_PYTHON_MCP_TOKEN</text>
+  <text x="1340" y="626" class="mono">CUSTOMER_BROWSER_MCP_TOKEN</text>
+  <text x="1340" y="660" class="card-copy">Injected from Container App secrets</text>
+  <text x="1340" y="685" class="card-copy">Distinct credentials per route type</text>
+  <text x="1340" y="710" class="card-copy">Never returned to Toolbox or model</text>
+  <text x="1340" y="735" class="card-small">Missing credential fails broker startup</text>
+
+  <path d="M860 390 C780 455 320 455 245 535" class="token"/>
+  <text x="462" y="444" class="label">delegated token enters broker trust boundary</text>
+  <path d="M410 636 H460" class="token"/>
+  <path d="M790 636 H840" class="data"/>
+  <path d="M1255 636 H1305" class="control"/>
+
+  <rect x="45" y="825" width="820" height="330" rx="26" fill="#0a3c39" stroke="#2dc9a7" stroke-width="2.5"/>
+  <text x="78" y="865" class="section">CUSTOMER SEGMENT: customer-personal - DEPLOYED</text>
+  <rect x="80" y="905" width="340" height="190" rx="20" fill="url(#customerA)" class="card"/>
+  <text x="114" y="947" class="card-title">Dedicated Python Sandbox</text>
+  <text x="114" y="978" class="card-copy">run_python and search_craigslist</text>
+  <text x="114" y="1003" class="card-copy">Receives only this route's bearer key</text>
+  <text x="114" y="1028" class="card-copy">Execution and output stay in this segment</text>
+  <text x="114" y="1053" class="card-copy">Default-deny governed egress</text>
+  <text x="114" y="1078" class="card-small">Credential A-Python</text>
+
+  <rect x="470" y="905" width="350" height="190" rx="20" fill="url(#customerA)" class="card"/>
+  <text x="504" y="947" class="card-title">Dedicated Browser Sandbox</text>
+  <text x="504" y="978" class="card-copy">Navigate and snapshot only</text>
+  <text x="504" y="1003" class="card-copy">Receives only this route's bearer key</text>
+  <text x="504" y="1028" class="card-copy">Customer-specific host validation</text>
+  <text x="504" y="1053" class="card-copy">Craigslist pages and images only</text>
+  <text x="504" y="1078" class="card-small">Credential A-Browser</text>
+
+  <rect x="900" y="825" width="855" height="330" rx="26" fill="#302847" stroke="#9c71cc" stroke-width="2.5"/>
+  <text x="933" y="865" class="section">CUSTOMER SEGMENT: customer-N - REPEATABLE ONBOARDING PATTERN</text>
+  <rect x="935" y="905" width="350" height="190" rx="20" fill="url(#customerN)" class="card"/>
+  <text x="969" y="947" class="card-title">Separate Python Sandbox</text>
+  <text x="969" y="978" class="card-copy">Different endpoint and entitlement</text>
+  <text x="969" y="1003" class="card-copy">Different Python bearer credential</text>
+  <text x="969" y="1028" class="card-copy">Independent egress host policy</text>
+  <text x="969" y="1053" class="card-copy">No access from customer-personal</text>
+  <text x="969" y="1078" class="card-small">Credential N-Python</text>
+
+  <rect x="1335" y="905" width="375" height="190" rx="20" fill="url(#customerN)" class="card"/>
+  <text x="1369" y="947" class="card-title">Separate Browser Sandbox</text>
+  <text x="1369" y="978" class="card-copy">Different endpoint and entitlement</text>
+  <text x="1369" y="1003" class="card-copy">Different browser bearer credential</text>
+  <text x="1369" y="1028" class="card-copy">Independent egress host policy</text>
+  <text x="1369" y="1053" class="card-copy">Provision only when onboarded</text>
+  <text x="1369" y="1078" class="card-small">Credential N-Browser</text>
+
+  <path d="M1455 755 C1270 805 650 795 250 905" class="key"/>
+  <path d="M1510 755 C1450 810 760 820 650 905" class="key"/>
+  <text x="790" y="814" class="label">only selected customer credentials and endpoints</text>
+
+  <path d="M1040 755 C1035 810 1090 830 1110 905" class="control"/>
+  <path d="M1090 755 C1250 810 1480 820 1510 905" class="control"/>
+  <text x="1130" y="792" class="label">future route remains separate</text>
+
+  <path d="M250 905 C300 840 600 800 850 755" class="result"/>
+  <text x="376" y="834" class="label">result only returns through the selecting broker request</text>
+
+  <rect x="45" y="1185" width="1710" height="54" rx="15" fill="#081f35" stroke="#315d79"/>
+  <line x1="75" y1="1212" x2="125" y2="1212" class="data"/>
+  <text x="140" y="1217" class="legend">tool arguments / customer data</text>
+  <line x1="395" y1="1212" x2="445" y2="1212" class="token"/>
+  <text x="460" y="1217" class="legend">delegated Entra token</text>
+  <line x1="710" y1="1212" x2="760" y2="1212" class="key"/>
+  <text x="775" y="1217" class="legend">server-side route credential</text>
+  <line x1="1050" y1="1212" x2="1100" y2="1212" class="result"/>
+  <text x="1115" y="1217" class="legend">returned result</text>
+  <line x1="1315" y1="1212" x2="1365" y2="1212" class="control"/>
+  <text x="1380" y="1217" class="legend">configuration/control data</text>
+</svg>

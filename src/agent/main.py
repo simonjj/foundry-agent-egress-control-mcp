@@ -1,8 +1,12 @@
 import asyncio
 import logging
 import os
+import socket
+import urllib.error
+import urllib.request
+from urllib.parse import urlparse
 
-from agent_framework import Agent, MCPStreamableHTTPTool
+from agent_framework import Agent, MCPStreamableHTTPTool, tool
 from agent_framework.foundry import FoundryChatClient
 from agent_framework.observability import enable_instrumentation, get_tracer
 from agent_framework_foundry_hosting import FoundryToolbox, ResponsesHostServer
@@ -12,6 +16,16 @@ from dotenv import load_dotenv
 load_dotenv()
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
+
+
+class LoggedFoundryToolbox(FoundryToolbox):
+    async def connect(self, *, reset: bool = False) -> None:
+        await super().connect(reset=reset)
+        exposed_tools = ",".join(function.name for function in self.functions)
+        logger.info(
+            "Foundry Toolbox exposed tools=%s",
+            exposed_tools or "(none)",
+        )
 
 
 def required_environment(name: str) -> str:
@@ -26,6 +40,82 @@ def environment_enabled(name: str, default: bool) -> bool:
     if value is None:
         return default
     return value.lower() in {"1", "true", "yes"}
+
+
+def toolbox_allowed_tools() -> list[str] | None:
+    configured = os.getenv("TOOLBOX_ALLOWED_TOOLS", "who_am_i").strip()
+    if configured == "*":
+        return None
+    return [name.strip() for name in configured.split(",") if name.strip()]
+
+
+@tool(approval_mode="never_require")
+async def diagnose_broker_network() -> dict[str, object]:
+    """Resolve and call the configured private broker health endpoint."""
+
+    endpoint = required_environment("BROKER_NETWORK_DIAGNOSTIC_URL")
+    parsed = urlparse(endpoint)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise RuntimeError(
+            "BROKER_NETWORK_DIAGNOSTIC_URL must be an absolute HTTPS URL."
+        )
+
+    port = parsed.port or 443
+    try:
+        address_info = await asyncio.to_thread(
+            socket.getaddrinfo,
+            parsed.hostname,
+            port,
+            type=socket.SOCK_STREAM,
+        )
+    except socket.gaierror as exc:
+        return {
+            "endpoint": endpoint,
+            "hostname": parsed.hostname,
+            "stage": "dns",
+            "error": str(exc),
+        }
+
+    addresses = sorted({entry[4][0] for entry in address_info})
+    request = urllib.request.Request(
+        endpoint,
+        headers={"User-Agent": "foundry-agent-network-diagnostic/1.0"},
+    )
+    try:
+        response = await asyncio.to_thread(
+            urllib.request.urlopen,
+            request,
+            None,
+            20,
+        )
+        with response:
+            body = response.read(512).decode("utf-8", errors="replace")
+            return {
+                "endpoint": endpoint,
+                "hostname": parsed.hostname,
+                "resolved_addresses": addresses,
+                "http_status": response.status,
+                "body": body,
+                "stage": "complete",
+            }
+    except urllib.error.HTTPError as exc:
+        body = exc.read(512).decode("utf-8", errors="replace")
+        return {
+            "endpoint": endpoint,
+            "hostname": parsed.hostname,
+            "resolved_addresses": addresses,
+            "http_status": exc.code,
+            "body": body,
+            "stage": "http",
+        }
+    except (urllib.error.URLError, TimeoutError) as exc:
+        return {
+            "endpoint": endpoint,
+            "hostname": parsed.hostname,
+            "resolved_addresses": addresses,
+            "stage": "https",
+            "error": str(exc),
+        }
 
 
 def build_direct_tools():
@@ -129,13 +219,18 @@ async def main() -> None:
         }
     client = FoundryChatClient(**client_options)
 
+    diagnostic_endpoint = os.getenv("BROKER_NETWORK_DIAGNOSTIC_URL")
     toolbox_endpoint = os.getenv("TOOLBOX_ENDPOINT")
-    if toolbox_endpoint:
-        tools = FoundryToolbox(
+    if diagnostic_endpoint:
+        tools = [diagnose_broker_network]
+        browser_mode = "broker-network-diagnostic"
+        primary_tool_name = "diagnose_broker_network"
+    elif toolbox_endpoint:
+        tools = LoggedFoundryToolbox(
             credential,
             url=toolbox_endpoint,
             name=os.getenv("TOOLBOX_NAME") or "tenant_broker",
-            allowed_tools=["who_am_i"],
+            allowed_tools=toolbox_allowed_tools(),
             approval_mode="never_require",
             load_prompts=False,
             request_timeout=120,
@@ -152,9 +247,12 @@ You demonstrate a governed enterprise agent architecture by helping users find,
 inspect, and compare current Craigslist listings.
 
 Use the available governed tools for public-web discovery, browser inspection,
-Python calculations, and structured analysis. When a who_am_i tool is
-available, use it to demonstrate the calling user's delegated identity without
-exposing raw access tokens.
+Python calculations, and structured analysis. When customer_context is
+available, call it before customer tools and use only the customer-approved
+hosts it returns. When a who_am_i tool is available, use it only for explicit
+identity diagnostics and never repeat raw object or subject identifiers. When
+diagnose_broker_network is available, call it immediately and report its exact
+DNS addresses, HTTP status, and diagnostic stage.
 
 Always include the URLs of listings used in the answer. Clearly distinguish
 search or listing claims from your own calculations. Browser automation is

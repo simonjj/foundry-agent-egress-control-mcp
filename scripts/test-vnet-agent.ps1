@@ -1,11 +1,25 @@
 [CmdletBinding()]
-param()
+param(
+    [ValidatePattern('^[A-Za-z0-9._-]+$')]
+    [string]$DeploymentProfile = "vnet",
+
+    [ValidatePattern('^[A-Z][A-Z0-9_]+$')]
+    [string]$AgentResponsesEnvironmentVariable =
+        "AGENT_CRAIGSLIST_AGENT_VNET_RESPONSES_ENDPOINT"
+)
 
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
 
 $root = Split-Path $PSScriptRoot -Parent
-$deploymentDirectory = Join-Path $root "deployments\vnet"
+$deploymentsRoot = Join-Path $root "deployments"
+$deploymentDirectory = Join-Path $deploymentsRoot $DeploymentProfile
+if (-not $deploymentDirectory.StartsWith(
+        $deploymentsRoot,
+        [StringComparison]::OrdinalIgnoreCase
+    )) {
+    throw "Deployment profile must resolve under the deployments directory."
+}
 $values = @{}
 azd env get-values --cwd $deploymentDirectory | ForEach-Object {
     if ($_ -match '^([^=]+)="(.*)"$') {
@@ -13,9 +27,12 @@ azd env get-values --cwd $deploymentDirectory | ForEach-Object {
     }
 }
 
-$endpoint = $values.AGENT_CRAIGSLIST_AGENT_VNET_RESPONSES_ENDPOINT.Trim()
+$endpoint = $values[$AgentResponsesEnvironmentVariable].Trim()
 if (-not $endpoint) {
-    throw "The VNet hosted-agent Responses endpoint is not configured."
+    throw (
+        "Hosted-agent Responses endpoint environment variable " +
+        "'$AgentResponsesEnvironmentVariable' is not configured."
+    )
 }
 
 $accessToken = az account get-access-token `

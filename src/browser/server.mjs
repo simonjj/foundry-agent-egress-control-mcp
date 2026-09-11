@@ -18,6 +18,9 @@ const upstreamPort = Number.parseInt(
   process.env.PLAYWRIGHT_MCP_PORT ?? "8931",
   10,
 );
+const allowedOrigins =
+  process.env.PLAYWRIGHT_ALLOWED_ORIGINS ??
+  "https://example.com;https://*.craigslist.org;https://craigslist.org;https://learn.microsoft.com;https://playwright.dev";
 const upstreamUrl = `http://127.0.0.1:${upstreamPort}`;
 
 const playwrightCli = fileURLToPath(
@@ -40,7 +43,7 @@ const playwright = spawn(
     "--allowed-hosts",
     "*",
     "--allowed-origins",
-    "https://example.com;https://*.craigslist.org;https://craigslist.org;https://learn.microsoft.com;https://playwright.dev",
+    allowedOrigins,
     "--image-responses",
     "omit",
     "--codegen",

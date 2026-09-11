@@ -40,6 +40,12 @@ variable "foundry_model_version" {
   default     = "2026-03-17"
 }
 
+variable "foundry_model_capacity" {
+  description = "Foundry model deployment capacity in thousands of tokens per minute (GlobalStandard SKU units)."
+  type        = number
+  default     = 100
+}
+
 variable "private_mode" {
   description = "Disable public access after images and the hosted agent are deployed."
   type        = bool
@@ -62,6 +68,59 @@ variable "python_executable" {
   description = "Python executable with scripts/requirements-vnet.txt installed."
   type        = string
   default     = "python"
+}
+
+variable "enable_identity_broker" {
+  description = "Deploy the delegated-identity MCP proof broker into the private Container Apps environment."
+  type        = bool
+  default     = false
+}
+
+variable "enable_customer_routing" {
+  description = "Route validated delegated users to a customer-specific Sandbox pair."
+  type        = bool
+  default     = false
+}
+
+variable "sandbox_customer_id" {
+  description = "Customer identifier applied to the provisioned Sandbox pair."
+  type        = string
+  default     = "shared"
+
+  validation {
+    condition     = can(regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", var.sandbox_customer_id))
+    error_message = "Sandbox customer ID must be a lowercase DNS-style label."
+  }
+}
+
+variable "sandbox_craigslist_site" {
+  description = "Craigslist subdomain allowed for the customer Sandbox pair."
+  type        = string
+  default     = "seattle"
+
+  validation {
+    condition     = can(regex("^[a-z0-9-]{1,40}$", var.sandbox_craigslist_site))
+    error_message = "Sandbox Craigslist site must be a valid subdomain label."
+  }
+}
+
+variable "broker_customer_entitlements" {
+  description = "Map of SHA-256 tenant:object-id keys to customer IDs."
+  type        = map(string)
+  default     = {}
+  sensitive   = true
+}
+
+variable "broker_entra_tenant_id" {
+  description = "Microsoft Entra tenant accepted by the delegated-identity broker."
+  type        = string
+  default     = ""
+}
+
+variable "broker_entra_audience" {
+  description = "Application client ID expected in delegated broker access tokens."
+  type        = string
+  default     = ""
 }
 
 variable "tags" {

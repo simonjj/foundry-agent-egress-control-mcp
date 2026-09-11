@@ -1,0 +1,69 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+requiredVersions:
+  extensions:
+    azure.ai.agents: '>=1.0.0-beta.13'
+name: state-street-personal-identity-proof
+hooks:
+  prepackage:
+    shell: pwsh
+    run: ./sync-agent.ps1
+services:
+  ai-project:
+    host: azure.ai.project
+    deployments:
+      - name: gpt-5-mini
+        model:
+          format: OpenAI
+          name: gpt-5-mini
+          version: '2025-08-07'
+        sku:
+          name: GlobalStandard
+          capacity: 5
+  craigslist-agent-personal-identity-proof:
+    host: azure.ai.agent
+    metadata:
+      tags:
+        - Agent Framework
+        - AI Agent Hosting
+        - Responses Protocol
+        - Activity Protocol
+        - Foundry Toolbox
+        - OAuth2
+        - Entra Delegated Identity
+        - Personal Tenant Proof
+        - Non-Production Identity Reproduction
+    project: .azd-src/agent
+    language: python
+    docker:
+      path: Dockerfile
+      remoteBuild: true
+    uses:
+      - ai-project
+    kind: hosted
+    name: craigslist-agent-personal-identity-proof
+    displayName: State Street Personal Delegated Identity Proof
+    description: Non-production proof of OAuth2 through the private MCP broker.
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+      - protocol: activity
+        version: 2.0.0
+    activity:
+      digitalWorkerType: m365
+    env:
+      PRIVATE_FOUNDRY_GATEWAY_ENDPOINT: ${PRIVATE_FOUNDRY_GATEWAY_ENDPOINT}
+      AZURE_AI_MODEL_DEPLOYMENT_NAME: ${AZURE_AI_MODEL_DEPLOYMENT_NAME=gpt-5-mini}
+      TOOLBOX_ENDPOINT: ${TOOLBOX_PERSONAL_AGENT_OAUTH_PROOF_MCP_ENDPOINT}
+      TOOLBOX_NAME: personal-agent-oauth-proof
+      TOOLBOX_ALLOWED_TOOLS: mcp-oauth___customer_context,mcp-oauth___search_craigslist,mcp-oauth___run_python,mcp-oauth___browse_url
+      ENABLE_FOUNDRY_WEB_SEARCH: 'false'
+      ENABLE_SANDBOX_SEARCH: 'false'
+      ENABLE_INSTRUMENTATION: 'true'
+      ENABLE_SENSITIVE_DATA: 'false'
+      OTEL_TRACES_SAMPLER: always_on
+      OTEL_METRIC_EXPORT_INTERVAL: '10000'
+    container:
+      resources:
+        cpu: '0.5'
+        memory: 1Gi

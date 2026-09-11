@@ -5,6 +5,22 @@ param(
     [string]$ResourceGroupName = "ss-agent-vnets",
     [string]$Location = "centralus",
     [string]$AzdEnvironment = "state-street-vnets",
+    [string]$TerraformWorkspace = "default",
+    [string]$Prefix = "ss-vnet",
+    [string]$FoundryModelName = "gpt-5.4-mini",
+    [string]$FoundryModelVersion = "2026-03-17",
+    [string]$DeploymentProfile = "vnet",
+    [string]$AgentName = "craigslist-agent-vnet",
+    [string]$AgentResponsesEnvironmentVariable =
+        "AGENT_CRAIGSLIST_AGENT_VNET_RESPONSES_ENDPOINT",
+    [switch]$EnableIdentityBroker,
+    [switch]$DisableIdentityBroker,
+    [string]$BrokerEntraTenantId = "",
+    [string]$BrokerEntraAudience = "",
+    [switch]$EnableCustomerRouting,
+    [string]$SandboxCustomerId = "shared",
+    [string]$SandboxCraigslistSite = "seattle",
+    [string]$BrokerCustomerIdentityHash = "",
     [string]$TerraformPath = "",
     [switch]$SkipAgentDeployment,
     [switch]$LeavePublicAccessEnabled
@@ -62,8 +78,64 @@ function Set-AzdValue {
 
 $root = Split-Path $PSScriptRoot -Parent
 $infraDirectory = Join-Path $root "infrastructure\terraform-vnet"
-$deploymentDirectory = Join-Path $root "deployments\vnet"
+$deploymentsRoot = Join-Path $root "deployments"
+$deploymentDirectory = Join-Path $deploymentsRoot $DeploymentProfile
 $requirements = Join-Path $PSScriptRoot "requirements-vnet.txt"
+
+if (-not $deploymentDirectory.StartsWith(
+        $deploymentsRoot,
+        [StringComparison]::OrdinalIgnoreCase
+    )) {
+    throw "Deployment profile must resolve under the deployments directory."
+}
+if (-not (Test-Path -LiteralPath (Join-Path $deploymentDirectory "azure.yaml"))) {
+    throw "Deployment profile '$DeploymentProfile' does not contain azure.yaml."
+}
+if ($EnableIdentityBroker -and $DisableIdentityBroker) {
+    throw "EnableIdentityBroker and DisableIdentityBroker cannot be used together."
+}
+$customerRoutingEnabled = "false"
+$brokerCustomerEntitlements = "{}"
+if ($EnableIdentityBroker) {
+    if (-not $BrokerEntraTenantId) {
+        $BrokerEntraTenantId = $TenantId
+    }
+    foreach ($value in @($BrokerEntraTenantId, $BrokerEntraAudience)) {
+        $parsedGuid = [Guid]::Empty
+        if (-not [Guid]::TryParse($value, [ref]$parsedGuid)) {
+            throw "Broker tenant ID and audience must be GUIDs."
+        }
+    }
+    if ($EnableCustomerRouting) {
+        if (-not $EnableIdentityBroker) {
+            throw "EnableCustomerRouting requires EnableIdentityBroker."
+        }
+        if ($SandboxCustomerId -eq "shared" -or
+            $SandboxCustomerId -notmatch '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$') {
+            throw "SandboxCustomerId must be a non-shared lowercase DNS-style label."
+        }
+        if ($SandboxCraigslistSite -notmatch '^[a-z0-9-]{1,40}$') {
+            throw "SandboxCraigslistSite must be a valid Craigslist subdomain."
+        }
+        if ($BrokerCustomerIdentityHash -notmatch '^[0-9a-f]{64}$') {
+            throw (
+                "BrokerCustomerIdentityHash must be the lowercase SHA-256 hash " +
+                "of '<tenant-id>:<object-id>'."
+            )
+        }
+    }
+
+    $customerRoutingEnabled = (
+        $EnableCustomerRouting.IsPresent.ToString().ToLowerInvariant()
+    )
+    $brokerCustomerEntitlements = "{}"
+    if ($EnableCustomerRouting) {
+        $brokerCustomerEntitlements = (
+            @{$BrokerCustomerIdentityHash = $SandboxCustomerId} |
+                ConvertTo-Json -Compress
+        )
+    }
+}
 
 foreach ($command in @("az", "azd", "python")) {
     if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
@@ -112,9 +184,68 @@ Invoke-Checked -Command $TerraformPath -Arguments @(
     "validate"
 )
 
+$previousWorkspace = (
+    & $TerraformPath "-chdir=$infraDirectory" workspace show
+).Trim()
+if ($LASTEXITCODE -ne 0) {
+    throw "Unable to read the active Terraform workspace."
+}
+if ($previousWorkspace -ne $TerraformWorkspace) {
+    $workspaceList = & $TerraformPath `
+        "-chdir=$infraDirectory" workspace list -no-color
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to list Terraform workspaces."
+    }
+    $workspaceNames = @(
+        $workspaceList |
+            ForEach-Object { $_.Trim().TrimStart("*").Trim() } |
+            Where-Object { $_ }
+    )
+    if ($workspaceNames -contains $TerraformWorkspace) {
+        Invoke-Checked -Command $TerraformPath -Arguments @(
+            "-chdir=$infraDirectory",
+            "workspace",
+            "select",
+            $TerraformWorkspace
+        )
+    }
+    else {
+        Invoke-Checked -Command $TerraformPath -Arguments @(
+            "-chdir=$infraDirectory",
+            "workspace",
+            "new",
+            $TerraformWorkspace
+        )
+    }
+}
+
+$stateResources = @(
+    & $TerraformPath "-chdir=$infraDirectory" state list
+)
+if ($LASTEXITCODE -ne 0) {
+    throw "Unable to inspect the selected Terraform workspace state."
+}
+$identityBrokerExists = (
+    $stateResources -contains "azurerm_container_app.broker[0]"
+)
+if (
+    $identityBrokerExists -and
+    -not $EnableIdentityBroker -and
+    -not $DisableIdentityBroker
+) {
+    throw (
+        "This workspace contains the identity proof broker. " +
+        "Pass -EnableIdentityBroker with its tenant and audience to preserve it, " +
+        "or pass -DisableIdentityBroker to explicitly remove it."
+    )
+}
+
+$safeWorkspace = $TerraformWorkspace -replace '[^A-Za-z0-9_.-]', '-'
 $lockdownRequired = $false
 try {
-$stageOnePlan = Join-Path $infraDirectory ".terraform\state-street-vnets-stage-one.tfplan"
+$stageOnePlan = Join-Path (
+    $infraDirectory
+) ".terraform\state-street-$safeWorkspace-stage-one.tfplan"
 Invoke-Checked -Command $TerraformPath -Arguments @(
     "-chdir=$infraDirectory",
     "plan",
@@ -123,9 +254,19 @@ Invoke-Checked -Command $TerraformPath -Arguments @(
     "-var=tenant_id=$TenantId",
     "-var=resource_group_name=$ResourceGroupName",
     "-var=location=$Location",
+    "-var=prefix=$Prefix",
+    "-var=foundry_model_name=$FoundryModelName",
+    "-var=foundry_model_version=$FoundryModelVersion",
     "-var=private_mode=false",
     "-var=enable_sandbox_deployment=true",
-    "-var=allow_registry_token_fallback=true"
+    "-var=allow_registry_token_fallback=true",
+    "-var=enable_identity_broker=$($EnableIdentityBroker.IsPresent.ToString().ToLowerInvariant())",
+    "-var=broker_entra_tenant_id=$BrokerEntraTenantId",
+    "-var=broker_entra_audience=$BrokerEntraAudience",
+    "-var=enable_customer_routing=$customerRoutingEnabled",
+    "-var=sandbox_customer_id=$SandboxCustomerId",
+    "-var=sandbox_craigslist_site=$SandboxCraigslistSite",
+    "-var=broker_customer_entitlements=$brokerCustomerEntitlements"
 )
 $lockdownRequired = -not $LeavePublicAccessEnabled
 Invoke-Checked -Command $TerraformPath -Arguments @(
@@ -157,7 +298,7 @@ $azdValues = [ordered]@{
     AZURE_AI_PROJECT_ID                   = Get-TerraformOutput "foundry_project_id"
     AZURE_AI_PROJECT_ENDPOINT             = Get-TerraformOutput "foundry_project_endpoint"
     FOUNDRY_PROJECT_ENDPOINT              = Get-TerraformOutput "foundry_project_endpoint"
-    AZURE_AI_MODEL_DEPLOYMENT_NAME        = "gpt-5.4-mini"
+    AZURE_AI_MODEL_DEPLOYMENT_NAME        = $FoundryModelName
     AZURE_OPENAI_ENDPOINT                 = "https://$(Get-TerraformOutput "foundry_account_name").openai.azure.com"
     AZURE_CONTAINER_REGISTRY_RESOURCE_ID  = Get-TerraformOutput "container_registry_id"
     AZURE_CONTAINER_REGISTRY_ENDPOINT     = Get-TerraformOutput "container_registry_endpoint"
@@ -171,12 +312,23 @@ $azdValues = [ordered]@{
     APPLICATION_INSIGHTS_NAME             = Get-TerraformOutput "application_insights_name"
     APPLICATIONINSIGHTS_CONNECTION_STRING = Get-TerraformOutput "application_insights_connection_string"
 }
+if ($EnableIdentityBroker) {
+    $azdValues.IDENTITY_BROKER_ENDPOINT = Get-TerraformOutput "identity_broker_endpoint"
+}
 foreach ($entry in $azdValues.GetEnumerator()) {
     Set-AzdValue -Name $entry.Key -Value $entry.Value
 }
 
 if (-not $SkipAgentDeployment) {
-    & (Join-Path $PSScriptRoot "sync-vnet-agent.ps1")
+    $syncScript = Join-Path $deploymentDirectory "sync-agent.ps1"
+    if (-not (Test-Path -LiteralPath $syncScript) -and
+        $DeploymentProfile -eq "vnet") {
+        $syncScript = Join-Path $PSScriptRoot "sync-vnet-agent.ps1"
+    }
+    if (-not (Test-Path -LiteralPath $syncScript)) {
+        throw "Deployment profile '$DeploymentProfile' does not contain a sync script."
+    }
+    & $syncScript
     Invoke-Checked -Command "azd" -Arguments @(
         "deploy",
         "--cwd",
@@ -184,7 +336,7 @@ if (-not $SkipAgentDeployment) {
         "--no-prompt"
     )
 
-    $agentMetadata = azd ai agent show craigslist-agent-vnet `
+    $agentMetadata = azd ai agent show $AgentName `
         --cwd $deploymentDirectory `
         --output json |
         ConvertFrom-Json
@@ -217,13 +369,17 @@ if (-not $SkipAgentDeployment) {
 
 & (Join-Path $PSScriptRoot "test-vnet-network.ps1")
 if (-not $SkipAgentDeployment) {
-    & (Join-Path $PSScriptRoot "test-vnet-agent.ps1")
+    & (Join-Path $PSScriptRoot "test-vnet-agent.ps1") `
+        -DeploymentProfile $DeploymentProfile `
+        -AgentResponsesEnvironmentVariable $AgentResponsesEnvironmentVariable
 }
 
 }
 finally {
 if ($lockdownRequired) {
-    $stageTwoPlan = Join-Path $infraDirectory ".terraform\state-street-vnets-private.tfplan"
+    $stageTwoPlan = Join-Path (
+        $infraDirectory
+    ) ".terraform\state-street-$safeWorkspace-private.tfplan"
     Invoke-Checked -Command $TerraformPath -Arguments @(
         "-chdir=$infraDirectory",
         "plan",
@@ -232,9 +388,19 @@ if ($lockdownRequired) {
         "-var=tenant_id=$TenantId",
         "-var=resource_group_name=$ResourceGroupName",
         "-var=location=$Location",
+        "-var=prefix=$Prefix",
+        "-var=foundry_model_name=$FoundryModelName",
+        "-var=foundry_model_version=$FoundryModelVersion",
         "-var=private_mode=true",
         "-var=enable_sandbox_deployment=true",
-        "-var=allow_registry_token_fallback=true"
+        "-var=allow_registry_token_fallback=true",
+        "-var=enable_identity_broker=$($EnableIdentityBroker.IsPresent.ToString().ToLowerInvariant())",
+        "-var=broker_entra_tenant_id=$BrokerEntraTenantId",
+        "-var=broker_entra_audience=$BrokerEntraAudience",
+        "-var=enable_customer_routing=$customerRoutingEnabled",
+        "-var=sandbox_customer_id=$SandboxCustomerId",
+        "-var=sandbox_craigslist_site=$SandboxCraigslistSite",
+        "-var=broker_customer_entitlements=$brokerCustomerEntitlements"
     )
     Invoke-Checked -Command $TerraformPath -Arguments @(
         "-chdir=$infraDirectory",
@@ -244,6 +410,14 @@ if ($lockdownRequired) {
     )
 
     & (Join-Path $PSScriptRoot "test-vnet-network.ps1")
+}
+if ($previousWorkspace -ne $TerraformWorkspace) {
+    Invoke-Checked -Command $TerraformPath -Arguments @(
+        "-chdir=$infraDirectory",
+        "workspace",
+        "select",
+        $previousWorkspace
+    )
 }
 }
 

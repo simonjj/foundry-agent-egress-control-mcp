@@ -58,6 +58,20 @@ resource "azapi_resource" "foundry_project" {
   response_export_values    = ["identity.principalId"]
 }
 
+resource "azapi_resource" "foundry_project_capability_host" {
+  type      = "Microsoft.CognitiveServices/accounts/projects/capabilityHosts@2025-04-01-preview"
+  name      = "caphostproj"
+  parent_id = azapi_resource.foundry_project.id
+
+  body = {
+    properties = {
+      capabilityHostKind = "Agents"
+    }
+  }
+
+  schema_validation_enabled = false
+}
+
 resource "azapi_resource" "model_deployment" {
   type      = "Microsoft.CognitiveServices/accounts/deployments@2024-10-01"
   name      = var.foundry_model_name
@@ -66,7 +80,7 @@ resource "azapi_resource" "model_deployment" {
   body = {
     sku = {
       name     = "GlobalStandard"
-      capacity = 5
+      capacity = var.foundry_model_capacity
     }
     properties = {
       model = {
