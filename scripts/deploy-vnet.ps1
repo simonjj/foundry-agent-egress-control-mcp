@@ -9,6 +9,8 @@ param(
     [string]$Prefix = "ss-vnet",
     [string]$FoundryModelName = "gpt-5.4-mini",
     [string]$FoundryModelVersion = "2026-03-17",
+    [ValidateSet("private", "playground")]
+    [string]$NetworkAccessMode = "private",
     [string]$DeploymentProfile = "vnet",
     [string]$AgentName = "craigslist-agent-vnet",
     [string]$AgentResponsesEnvironmentVariable =
@@ -93,6 +95,13 @@ if (-not (Test-Path -LiteralPath (Join-Path $deploymentDirectory "azure.yaml")))
 }
 if ($EnableIdentityBroker -and $DisableIdentityBroker) {
     throw "EnableIdentityBroker and DisableIdentityBroker cannot be used together."
+}
+if ($LeavePublicAccessEnabled) {
+    Write-Warning (
+        "-LeavePublicAccessEnabled is deprecated; use " +
+        "-NetworkAccessMode playground."
+    )
+    $NetworkAccessMode = "playground"
 }
 $customerRoutingEnabled = "false"
 $brokerCustomerEntitlements = "{}"
@@ -257,7 +266,7 @@ Invoke-Checked -Command $TerraformPath -Arguments @(
     "-var=prefix=$Prefix",
     "-var=foundry_model_name=$FoundryModelName",
     "-var=foundry_model_version=$FoundryModelVersion",
-    "-var=private_mode=false",
+    "-var=network_access_mode=playground",
     "-var=enable_sandbox_deployment=true",
     "-var=allow_registry_token_fallback=true",
     "-var=enable_identity_broker=$($EnableIdentityBroker.IsPresent.ToString().ToLowerInvariant())",
@@ -268,7 +277,7 @@ Invoke-Checked -Command $TerraformPath -Arguments @(
     "-var=sandbox_craigslist_site=$SandboxCraigslistSite",
     "-var=broker_customer_entitlements=$brokerCustomerEntitlements"
 )
-$lockdownRequired = -not $LeavePublicAccessEnabled
+$lockdownRequired = $NetworkAccessMode -eq "private"
 Invoke-Checked -Command $TerraformPath -Arguments @(
     "-chdir=$infraDirectory",
     "apply",
@@ -391,7 +400,7 @@ if ($lockdownRequired) {
         "-var=prefix=$Prefix",
         "-var=foundry_model_name=$FoundryModelName",
         "-var=foundry_model_version=$FoundryModelVersion",
-        "-var=private_mode=true",
+        "-var=network_access_mode=private",
         "-var=enable_sandbox_deployment=true",
         "-var=allow_registry_token_fallback=true",
         "-var=enable_identity_broker=$($EnableIdentityBroker.IsPresent.ToString().ToLowerInvariant())",

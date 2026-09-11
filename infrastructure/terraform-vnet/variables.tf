@@ -46,10 +46,24 @@ variable "foundry_model_capacity" {
   default     = 100
 }
 
+variable "network_access_mode" {
+  description = "Final network access mode: 'private' disables public platform endpoints; 'playground' keeps Foundry and supporting deployment/telemetry endpoints publicly reachable with Entra RBAC. Defaults to 'private' when omitted."
+  type        = string
+  default     = null
+
+  validation {
+    condition = (
+      var.network_access_mode == null ||
+      contains(["private", "playground"], var.network_access_mode)
+    )
+    error_message = "network_access_mode must be either 'private' or 'playground'."
+  }
+}
+
 variable "private_mode" {
-  description = "Disable public access after images and the hosted agent are deployed."
+  description = "Deprecated compatibility alias used only when network_access_mode is omitted: true selects 'private' and false selects 'playground'."
   type        = bool
-  default     = false
+  default     = null
 }
 
 variable "enable_sandbox_deployment" {

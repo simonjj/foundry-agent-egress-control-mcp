@@ -18,9 +18,9 @@ resource "azapi_resource" "foundry_account" {
       allowProjectManagement = true
       customSubDomainName    = local.foundry_account_name
       disableLocalAuth       = true
-      publicNetworkAccess    = var.private_mode ? "Disabled" : "Enabled"
+      publicNetworkAccess    = local.private_mode ? "Disabled" : "Enabled"
       networkAcls = {
-        defaultAction = var.private_mode ? "Deny" : "Allow"
+        defaultAction = local.private_mode ? "Deny" : "Allow"
       }
       networkInjections = [
         {

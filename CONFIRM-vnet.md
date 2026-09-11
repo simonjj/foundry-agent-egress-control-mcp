@@ -190,7 +190,7 @@ New validation only requires non-zero recent records.
 ```powershell
 terraform -chdir="$infra" plan `
   -detailed-exitcode `
-  -var="private_mode=true" `
+  -var="network_access_mode=private" `
   -var="enable_sandbox_deployment=true" `
   -var="allow_registry_token_fallback=true"
 ```

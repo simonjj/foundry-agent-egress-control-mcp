@@ -1,5 +1,15 @@
 locals {
   suffix = random_string.suffix.result
+  effective_network_access_mode = (
+    var.network_access_mode != null
+    ? var.network_access_mode
+    : (
+      var.private_mode != null
+      ? (var.private_mode ? "private" : "playground")
+      : "private"
+    )
+  )
+  private_mode = local.effective_network_access_mode == "private"
 
   common_tags = merge(
     {

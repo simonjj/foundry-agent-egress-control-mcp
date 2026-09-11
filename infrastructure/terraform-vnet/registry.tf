@@ -4,13 +4,13 @@ resource "azurerm_container_registry" "main" {
   location                              = azurerm_resource_group.main.location
   sku                                   = "Premium"
   admin_enabled                         = false
-  public_network_access_enabled         = !var.private_mode
+  public_network_access_enabled         = !local.private_mode
   anonymous_pull_enabled                = false
   data_endpoint_enabled                 = true
   network_rule_bypass_option            = "AzureServices"
-  network_rule_bypass_for_tasks_enabled = !var.private_mode
+  network_rule_bypass_for_tasks_enabled = !local.private_mode
   network_rule_set = [{
-    default_action = var.private_mode ? "Deny" : "Allow"
+    default_action = local.private_mode ? "Deny" : "Allow"
     ip_rule        = []
   }]
   tags = local.common_tags

@@ -102,7 +102,11 @@ output "application_insights_connection_string" {
 }
 
 output "private_mode" {
-  value = var.private_mode
+  value = local.private_mode
+}
+
+output "network_access_mode" {
+  value = local.effective_network_access_mode
 }
 
 output "platform_public_exceptions" {

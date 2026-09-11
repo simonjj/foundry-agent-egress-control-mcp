@@ -179,7 +179,7 @@ private DNS paths.
 ### Deploy the VNet profile
 
 ```powershell
-pwsh .\scripts\deploy-vnet.ps1
+pwsh .\scripts\deploy-vnet.ps1 -NetworkAccessMode private
 ```
 
 The staged workflow:
@@ -195,13 +195,33 @@ The staged workflow:
    Insights; and
 8. reruns the internal private-network checks.
 
-To keep bootstrap access enabled temporarily for troubleshooting:
+To keep the Foundry data plane and supporting deployment/telemetry endpoints
+reachable from a normal browser so users can use the Foundry Playground:
 
 ```powershell
-pwsh .\scripts\deploy-vnet.ps1 -LeavePublicAccessEnabled
+pwsh .\scripts\deploy-vnet.ps1 -NetworkAccessMode playground
 ```
 
-Do not leave that switch enabled after troubleshooting.
+The corresponding Terraform parameter is:
+
+```hcl
+network_access_mode = "playground" # or "private"
+```
+
+| Mode | Final public access | Intended use |
+|---|---|---|
+| `private` | Foundry, ACR, Log Analytics, and Application Insights public network access is disabled | Fully locked-down deployment; use private network connectivity for the Foundry data plane |
+| `playground` | Foundry, ACR, Log Analytics, and Application Insights remain publicly reachable and protected by Entra RBAC | Interactive development and Foundry Playground access from a normal browser |
+
+Both modes retain the hub-and-spoke VNets, private endpoints, private DNS,
+internal Nginx gateway, private MCP broker path, and private Sandbox
+environment. `playground` does **not** expose the ACA gateway, broker, or
+Sandboxes directly to the public internet.
+
+The default is `private`. `private_mode` remains available as a deprecated
+Terraform compatibility alias when `network_access_mode` is omitted:
+`true` maps to `private`, and `false` maps to `playground`. An explicit
+`network_access_mode` takes precedence.
 
 Run the private-profile acceptance procedures independently:
 
@@ -600,7 +620,7 @@ Check the private root separately:
 ```powershell
 terraform -chdir=".\infrastructure\terraform-vnet" plan `
   -detailed-exitcode `
-  -var="private_mode=true" `
+  -var="network_access_mode=private" `
   -var="enable_sandbox_deployment=true" `
   -var="allow_registry_token_fallback=true"
 ```
