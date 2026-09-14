@@ -1,0 +1,272 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1160" viewBox="0 0 1900 1160" role="img" aria-labelledby="title desc">
+  <title id="title">Tenant-aware MCP solution call flow (v3)</title>
+  <desc id="desc">Runtime flow for the Playwright Workspaces architecture. A shared Foundry Hosted Agent uses an OAuth2 broker Toolbox for customer-routed Python and search tools inside the customer-controlled private plane, and a separate approval-gated Toolbox for a shared Microsoft-managed Playwright Workspace outside that plane.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#06172c"/>
+      <stop offset="0.55" stop-color="#0a2b49"/>
+      <stop offset="1" stop-color="#123f58"/>
+    </linearGradient>
+    <linearGradient id="agent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b5fc7"/>
+      <stop offset="1" stop-color="#7d55d9"/>
+    </linearGradient>
+    <linearGradient id="toolbox" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0078d4"/>
+      <stop offset="1" stop-color="#00a4ef"/>
+    </linearGradient>
+    <linearGradient id="playwright" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8f3ec4"/>
+      <stop offset="1" stop-color="#c452b8"/>
+    </linearGradient>
+    <linearGradient id="broker" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c45418"/>
+      <stop offset="1" stop-color="#e38b24"/>
+    </linearGradient>
+    <linearGradient id="sandbox" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#008272"/>
+      <stop offset="1" stop-color="#00a68a"/>
+    </linearGradient>
+    <linearGradient id="shared" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4a5568"/>
+      <stop offset="1" stop-color="#6b7a91"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#00101d" flood-opacity="0.45"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 z" fill="#86dcff"/>
+    </marker>
+    <marker id="arrowGold" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 z" fill="#ffd166"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 z" fill="#65e6ae"/>
+    </marker>
+    <marker id="arrowPink" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 z" fill="#ff8dc7"/>
+    </marker>
+    <marker id="arrowViolet" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 z" fill="#d79cff"/>
+    </marker>
+    <style>
+      .title { font: 700 38px "Segoe UI", Arial, sans-serif; fill: #f7fcff; }
+      .subtitle { font: 400 18px "Segoe UI", Arial, sans-serif; fill: #bddced; }
+      .zone-title { font: 700 16px "Segoe UI", Arial, sans-serif; fill: #cdeeff; letter-spacing: 1.3px; }
+      .zone-title-shared { font: 700 16px "Segoe UI", Arial, sans-serif; fill: #ffd9b0; letter-spacing: 1.3px; }
+      .card-title { font: 700 19px "Segoe UI", Arial, sans-serif; fill: #ffffff; }
+      .card-copy { font: 400 13.5px "Segoe UI", Arial, sans-serif; fill: #e6f3fa; }
+      .card-small { font: 600 12px "Segoe UI", Arial, sans-serif; fill: #d4ebf6; }
+      .tag { font: 700 13px "Segoe UI", Arial, sans-serif; fill: #06182c; }
+      .legend { font: 600 13px "Segoe UI", Arial, sans-serif; fill: #d4eaf5; }
+      .zone { fill: #0a233b; stroke: #376b89; stroke-width: 2; }
+      .zone-shared { fill: #18202e; stroke: #8a6a45; stroke-width: 2; stroke-dasharray: 14 9; }
+      .card { stroke: #ffffff; stroke-opacity: 0.24; stroke-width: 1.5; filter: url(#shadow); }
+      .request { fill: none; stroke: #86dcff; stroke-width: 4; marker-end: url(#arrowBlue); }
+      .identity { fill: none; stroke: #ffd166; stroke-width: 4; marker-end: url(#arrowGold); }
+      .approval { fill: none; stroke: #d79cff; stroke-width: 4; marker-end: url(#arrowViolet); }
+      .secret { fill: none; stroke: #ff8dc7; stroke-width: 3.5; marker-end: url(#arrowPink); }
+      .returnpath { fill: none; stroke: #65e6ae; stroke-width: 4; stroke-dasharray: 11 8; marker-end: url(#arrowGreen); }
+      .web { fill: none; stroke: #ffd166; stroke-width: 3; stroke-dasharray: 9 8; marker-end: url(#arrowGold); }
+    </style>
+  </defs>
+
+  <rect width="1900" height="1160" fill="url(#bg)"/>
+  <circle cx="1740" cy="55" r="230" fill="#2d7da0" opacity="0.12"/>
+  <circle cx="80" cy="1090" r="260" fill="#7454db" opacity="0.10"/>
+
+  <text x="64" y="60" class="title">Tenant-Aware MCP Solution — Runtime Call Flow (v3)</text>
+  <text x="64" y="94" class="subtitle">One Hosted Agent, two Toolboxes: customer-routed Python and search through the private broker, plus a shared approval-gated Playwright Workspace</text>
+
+  <!-- Zones -->
+  <rect x="40" y="130" width="240" height="880" rx="24" class="zone"/>
+  <text x="64" y="164" class="zone-title">CALLER</text>
+
+  <rect x="300" y="130" width="610" height="880" rx="24" class="zone"/>
+  <text x="326" y="164" class="zone-title">MICROSOFT FOUNDRY</text>
+
+  <rect x="1000" y="130" width="860" height="420" rx="24" class="zone"/>
+  <text x="1026" y="164" class="zone-title">CUSTOMER-CONTROLLED PRIVATE TOOL PLANE</text>
+
+  <rect x="1000" y="590" width="860" height="420" rx="24" class="zone-shared"/>
+  <text x="1026" y="624" class="zone-title-shared">SHARED MICROSOFT-MANAGED BROWSER SERVICE</text>
+
+  <!-- Caller card -->
+  <rect x="60" y="420" width="190" height="200" rx="20" fill="#27445d" class="card"/>
+  <circle cx="155" cy="470" r="26" fill="#d9edff"/>
+  <circle cx="155" cy="462" r="9" fill="#27445d"/>
+  <path d="M134 491 Q155 468 176 491" stroke="#27445d" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <text x="155" y="523" text-anchor="middle" class="card-title">Authenticated user</text>
+  <text x="155" y="551" text-anchor="middle" class="card-copy">Foundry playground or</text>
+  <text x="155" y="572" text-anchor="middle" class="card-copy">Responses client</text>
+  <text x="155" y="598" text-anchor="middle" class="card-small">Approves browser actions</text>
+
+  <!-- Agent card -->
+  <rect x="325" y="400" width="260" height="250" rx="20" fill="url(#agent)" class="card"/>
+  <text x="347" y="440" class="card-title">Foundry Hosted Agent</text>
+  <text x="347" y="468" class="card-copy">craigslist-agent-personal-</text>
+  <text x="347" y="488" class="card-copy">identity-proof · version 2</text>
+  <text x="347" y="516" class="card-copy">Two independent Toolboxes</text>
+  <text x="347" y="538" class="card-copy">Model selects a tool; never</text>
+  <text x="347" y="558" class="card-copy">sees endpoints or keys</text>
+  <rect x="347" y="574" width="216" height="56" rx="12" fill="#27204e" opacity="0.85"/>
+  <text x="361" y="596" class="card-small">Browser tools removed</text>
+  <text x="361" y="616" class="card-small">from the broker surface</text>
+
+  <!-- Broker Toolbox card -->
+  <rect x="620" y="200" width="280" height="230" rx="20" fill="url(#toolbox)" class="card"/>
+  <text x="642" y="240" class="card-title">Broker Toolbox</text>
+  <text x="642" y="266" class="card-copy">personal-agent-oauth-proof:1</text>
+  <text x="642" y="288" class="card-copy">Connection: mcp-oauth</text>
+  <text x="642" y="310" class="card-copy">OAuth2 delegated · never_require</text>
+  <rect x="642" y="326" width="236" height="94" rx="12" fill="#075a96" opacity="0.9"/>
+  <text x="656" y="346" class="card-small">Allowed tools (exact)</text>
+  <text x="656" y="368" class="card-small">mcp-oauth___customer_context</text>
+  <text x="656" y="388" class="card-small">mcp-oauth___run_python</text>
+  <text x="656" y="408" class="card-small">mcp-oauth___search_craigslist</text>
+
+  <!-- Playwright Toolbox card -->
+  <rect x="620" y="650" width="280" height="300" rx="20" fill="url(#playwright)" class="card"/>
+  <text x="642" y="690" class="card-title">Playwright Toolbox</text>
+  <text x="642" y="716" class="card-copy">playwright-browser-automation:1</text>
+  <text x="642" y="738" class="card-copy">Connection: Custom Keys</text>
+  <rect x="642" y="752" width="236" height="28" rx="9" fill="#ffd166"/>
+  <text x="760" y="771" text-anchor="middle" class="tag">APPROVAL REQUIRED</text>
+  <text x="642" y="804" class="card-copy">always_require · 15 curated tools</text>
+  <rect x="642" y="818" width="236" height="114" rx="12" fill="#5a1f78" opacity="0.9"/>
+  <text x="656" y="838" class="card-small">Excluded from allowlist</text>
+  <text x="656" y="858" class="card-small">browser_evaluate · _run_code</text>
+  <text x="656" y="878" class="card-small">browser_file_upload · _drag</text>
+  <text x="656" y="898" class="card-small">browser_handle_dialog</text>
+  <text x="656" y="918" class="card-small">browser_network_requests</text>
+
+  <!-- Broker card -->
+  <rect x="1025" y="190" width="810" height="175" rx="22" fill="url(#broker)" class="card"/>
+  <text x="1050" y="232" class="card-title">Private MCP Broker — FastMCP</text>
+  <text x="1050" y="262" class="card-copy">1. Validate RS256 signature, issuer, audience, and lifetime</text>
+  <text x="1050" y="286" class="card-copy">2. Require delegated scope McpBroker.Invoke plus tid and oid</text>
+  <text x="1050" y="310" class="card-copy">3. Compute SHA256(tid:oid) and resolve the customer entitlement</text>
+  <text x="1050" y="334" class="card-copy">4. Inject the server-side Python bearer key and host allowlist</text>
+  <rect x="1510" y="215" width="150" height="130" rx="12" fill="#8d3b11" opacity="0.85"/>
+  <text x="1524" y="237" class="card-small">Config metadata</text>
+  <text x="1524" y="261" class="card-small">CUSTOMER_</text>
+  <text x="1524" y="279" class="card-small">ENTITLEMENTS_JSON</text>
+  <text x="1524" y="303" class="card-small">CUSTOMER_</text>
+  <text x="1524" y="321" class="card-small">ROUTES_JSON</text>
+  <rect x="1675" y="215" width="150" height="130" rx="12" fill="#8d3b11" opacity="0.85"/>
+  <text x="1689" y="237" class="card-small">Fail closed</text>
+  <text x="1689" y="261" class="card-small">Unknown identity</text>
+  <text x="1689" y="279" class="card-small">→ denied</text>
+  <text x="1689" y="303" class="card-small">Invalid host</text>
+  <text x="1689" y="321" class="card-small">→ denied</text>
+
+  <!-- Python Sandbox card -->
+  <rect x="1025" y="410" width="390" height="120" rx="20" fill="url(#sandbox)" class="card"/>
+  <text x="1050" y="450" class="card-title">Customer Python Sandbox</text>
+  <text x="1050" y="476" class="card-copy">customer-personal · ACA Sandbox · Central US</text>
+  <text x="1050" y="498" class="card-copy">run_python · search_craigslist</text>
+  <text x="1050" y="520" class="card-small">be66793a…477c · VNet: tools-egress</text>
+
+  <!-- Approved destinations card -->
+  <rect x="1445" y="410" width="390" height="120" rx="20" fill="#59451c" stroke="#ffd166" stroke-opacity="0.65" stroke-width="1.5"/>
+  <text x="1470" y="450" class="card-title">Approved destinations</text>
+  <text x="1470" y="476" class="card-copy">Egress: default Deny · Full inspection</text>
+  <text x="1470" y="498" class="card-copy">4 allow rules: craigslist.org hosts</text>
+  <text x="1470" y="520" class="card-small">Verified: aca sandbox egress show</text>
+
+  <!-- Shared-service governance card -->
+  <rect x="1025" y="650" width="810" height="175" rx="22" fill="url(#shared)" class="card"/>
+  <text x="1050" y="692" class="card-title">Shared-service governance</text>
+  <text x="1050" y="722" class="card-copy">The Playwright Workspace is shared across customers.</text>
+  <text x="1050" y="746" class="card-copy">Browser traffic leaves the customer-controlled plane.</text>
+  <text x="1050" y="770" class="card-copy">There is no customer VNet or private endpoint path.</text>
+  <text x="1050" y="794" class="card-copy">Compensating controls are listed to the right.</text>
+  <rect x="1440" y="672" width="200" height="140" rx="12" fill="#2b3547" opacity="0.92"/>
+  <text x="1454" y="694" class="card-small">Compensating controls</text>
+  <text x="1454" y="716" class="card-small">· curated tool allowlist</text>
+  <text x="1454" y="736" class="card-small">· approval every action</text>
+  <text x="1454" y="756" class="card-small">· ephemeral sessions</text>
+  <text x="1454" y="776" class="card-small">· no cross-request reuse</text>
+  <text x="1454" y="796" class="card-small">· customer-aware policy</text>
+  <rect x="1655" y="672" width="170" height="140" rx="12" fill="#2b3547" opacity="0.92"/>
+  <text x="1669" y="694" class="card-small">Workspace token</text>
+  <text x="1669" y="716" class="card-small">Custom Keys</text>
+  <text x="1669" y="736" class="card-small">connection header</text>
+  <text x="1669" y="756" class="card-small">x-api-key</text>
+  <text x="1669" y="778" class="card-small">Never exposed to</text>
+  <text x="1669" y="796" class="card-small">the model or Git</text>
+
+  <!-- Playwright Workspace card -->
+  <rect x="1025" y="870" width="390" height="120" rx="20" fill="url(#shared)" class="card"/>
+  <text x="1050" y="910" class="card-title">Playwright Workspace</text>
+  <text x="1050" y="936" class="card-copy">ss-personal-vnet-pww-e0w · West US 3</text>
+  <text x="1050" y="958" class="card-copy">Remote MCP · ephemeral sessions</text>
+  <text x="1050" y="980" class="card-small">Workspace f7977d81…876</text>
+
+  <!-- Managed browser egress card -->
+  <rect x="1445" y="870" width="390" height="120" rx="20" fill="#59451c" stroke="#ffd166" stroke-opacity="0.65" stroke-width="1.5"/>
+  <text x="1470" y="910" class="card-title">Managed browser egress</text>
+  <text x="1470" y="936" class="card-copy">Service-managed public browsing</text>
+  <text x="1470" y="958" class="card-copy">Not customer network-enforced</text>
+  <text x="1470" y="980" class="card-small">Agent policy limits target hosts</text>
+
+  <!-- Flow 8: return path (drawn first so flow labels sit on top) -->
+  <path class="returnpath" d="M1025 340 H960 V985 H150 V630"/>
+  <rect x="420" y="970" width="360" height="30" rx="10" fill="#0d3a2c" stroke="#65e6ae" stroke-width="1.2"/>
+  <text x="600" y="991" text-anchor="middle" class="tag" fill="#eafff5">⑧ tool result → model response → caller</text>
+
+  <!-- Flow 1: caller -> agent -->
+  <path class="request" d="M250 520 H325"/>
+  <rect x="250" y="482" width="74" height="26" rx="8" fill="#86dcff"/>
+  <text x="287" y="500" text-anchor="middle" class="tag">① prompt</text>
+
+  <!-- Flow 2: agent -> broker toolbox -->
+  <path class="request" d="M455 400 V335 H620"/>
+  <rect x="468" y="322" width="150" height="26" rx="8" fill="#86dcff"/>
+  <text x="543" y="340" text-anchor="middle" class="tag">② broker tool call</text>
+
+  <!-- Flow 3: broker toolbox -> broker -->
+  <path class="identity" d="M900 290 H1025"/>
+  <rect x="902" y="277" width="122" height="26" rx="8" fill="#ffd166"/>
+  <text x="963" y="295" text-anchor="middle" class="tag">③ OAuth token</text>
+
+  <!-- Flow 4: broker -> python sandbox -->
+  <path class="secret" d="M1220 365 V410"/>
+  <rect x="1120" y="375" width="200" height="26" rx="8" fill="#ff8dc7"/>
+  <text x="1220" y="393" text-anchor="middle" class="tag">④ route + server key</text>
+
+  <!-- Python sandbox -> approved destinations -->
+  <path class="web" d="M1415 470 H1445"/>
+
+  <!-- Flow 5: agent -> playwright toolbox -->
+  <path class="request" d="M455 650 V760 H620"/>
+  <rect x="468" y="747" width="150" height="26" rx="8" fill="#86dcff"/>
+  <text x="543" y="765" text-anchor="middle" class="tag">⑤ browser tool call</text>
+
+  <!-- Flow 6: playwright toolbox -> shared service -->
+  <path class="approval" d="M900 740 H1025"/>
+  <rect x="902" y="727" width="122" height="26" rx="8" fill="#d79cff"/>
+  <text x="963" y="745" text-anchor="middle" class="tag">⑥ approval gate</text>
+
+  <!-- Flow 7: governance -> workspace -->
+  <path class="secret" d="M1220 825 V870"/>
+  <rect x="1120" y="835" width="200" height="26" rx="8" fill="#ff8dc7"/>
+  <text x="1220" y="853" text-anchor="middle" class="tag">⑦ workspace token</text>
+
+  <!-- Workspace -> managed egress -->
+  <path class="web" d="M1415 930 H1445"/>
+
+  <!-- Legend -->
+  <rect x="40" y="1040" width="1820" height="70" rx="16" fill="#081f35" stroke="#315d79"/>
+  <line x1="70" y1="1068" x2="120" y2="1068" class="request"/>
+  <text x="134" y="1073" class="legend">request / tool call</text>
+  <line x1="330" y1="1068" x2="380" y2="1068" class="identity"/>
+  <text x="394" y="1073" class="legend">delegated identity token</text>
+  <line x1="620" y1="1068" x2="670" y2="1068" class="approval"/>
+  <text x="684" y="1073" class="legend">runtime approval gate</text>
+  <line x1="890" y1="1068" x2="940" y2="1068" class="secret"/>
+  <text x="954" y="1073" class="legend">server-side key or workspace token</text>
+  <line x1="1250" y1="1068" x2="1300" y2="1068" class="returnpath"/>
+  <text x="1314" y="1073" class="legend">returned tool + model data</text>
+  <text x="1560" y="1073" class="legend">Live proof: September 14, 2026</text>
+</svg>

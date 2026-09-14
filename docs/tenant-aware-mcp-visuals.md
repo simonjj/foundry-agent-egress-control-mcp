@@ -4,12 +4,14 @@ These diagrams describe the implemented personal-tenant proof and the
 repeatable customer-onboarding pattern. They intentionally prioritize trust
 boundaries and ownership over individual Azure resource names.
 
-> The `-2` files are the current revision (tighter spacing, no overlapping
-> labels). The original files remain for history and are not linked below.
+> The call flow is at revision `-3`, which places the shared Playwright
+> Workspace outside the customer-controlled private tool plane. Other diagrams
+> are at revision `-2`. Earlier revisions remain for history and are not
+> linked below.
 
 ## Components and runtime call flow
 
-![Tenant-aware MCP runtime call flow](images/tenant-aware-mcp-call-flow-2.svg)
+![Tenant-aware MCP runtime call flow](images/tenant-aware-mcp-call-flow-3.svg)
 
 The shared Hosted Agent uses two Toolboxes. The OAuth2 broker Toolbox exposes
 customer context, Python, and search; the broker validates delegated identity
@@ -17,6 +19,13 @@ and injects only the selected Python Sandbox credential. The separate PWW
 Toolbox connects directly to the shared Playwright Workspace remote MCP,
 exposes a curated browser allowlist, and requires runtime approval for every
 browser action.
+
+The `-3` revision makes the trust boundary explicit: the Playwright Workspace
+is a shared Microsoft-managed service that sits outside the customer-controlled
+private tool plane. Browser separation therefore rests on the exact tool
+allowlist, per-action runtime approval, ephemeral non-reused sessions, and
+agent policy — not on VNet or private endpoint isolation. The Python Sandbox
+path is unchanged and remains network-isolated with default-deny egress.
 
 ## Customer segmentation, authentication, and data/key flow
 
