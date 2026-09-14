@@ -85,12 +85,6 @@ variable "legacy_interpreter_source_hash" {
   default     = "39bfe4afdffeab782f7ca47e5579df01bac78ca5e6737f402ca3c30620a8861c"
 }
 
-variable "legacy_browser_source_hash" {
-  description = "Pinned source hash for the deployed ss-agent-day3 browser fallback image. Change only when intentionally updating the legacy deployment."
-  type        = string
-  default     = "43d177136d6e8c09b1649349a4a0d72fa3e91eabcbd9d06ccca3c27294b0eba7"
-}
-
 variable "tags" {
   description = "Additional tags applied to Azure resources."
   type        = map(string)

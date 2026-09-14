@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1330" viewBox="0 0 1800 1330" role="img" aria-labelledby="title desc">
   <title id="title">Tenant-aware MCP customer segmentation, authentication, and key flow (v2)</title>
-  <desc id="desc">Security architecture showing shared Foundry services, delegated OAuth token validation, hashed identity entitlements, server-side route credentials, and isolated per-customer Python and browser Sandboxes.</desc>
+  <desc id="desc">Security architecture showing delegated broker routing for isolated customer Python Sandboxes and a separate shared Playwright Workspace with per-action approval.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#06162b"/>
@@ -81,7 +81,7 @@
   <rect x="360" y="200" width="290" height="220" rx="20" fill="url(#shared)" class="card"/>
   <text x="392" y="242" class="card-title">Shared Hosted Agent</text>
   <text x="392" y="274" class="card-copy">Conversation and model runtime</text>
-  <text x="392" y="298" class="card-copy">Four allowed Toolbox functions</text>
+  <text x="392" y="298" class="card-copy">Broker tools plus curated PWW tools</text>
   <text x="392" y="322" class="card-copy">No route table or customer key</text>
   <text x="392" y="352" class="card-small">Same deployment for all customers</text>
 
@@ -153,7 +153,7 @@
   <text x="938" y="710" class="card-title">3 · Resolve server-side route</text>
   <text x="938" y="742" class="mono">CUSTOMER_ROUTES_JSON</text>
   <text x="938" y="770" class="card-copy">Python MCP URL + token env name</text>
-  <text x="938" y="793" class="card-copy">Browser MCP URL + token env name</text>
+  <text x="938" y="793" class="card-copy">Python MCP URL + token env name</text>
   <text x="938" y="816" class="card-copy">Customer-specific allowed hosts</text>
   <text x="938" y="839" class="card-small">The broker, never the model, picks this</text>
 
@@ -181,12 +181,12 @@
   <text x="106" y="1220" class="card-small">Credential A-Python</text>
 
   <rect x="474" y="1040" width="380" height="196" rx="20" fill="url(#customerA)" class="card"/>
-  <text x="504" y="1078" class="card-title">Dedicated Browser Sandbox</text>
+  <text x="504" y="1078" class="card-title">Shared PWW Session</text>
   <text x="504" y="1106" class="card-copy">Navigate and snapshot only</text>
   <text x="504" y="1128" class="card-copy">Receives only this route's bearer key</text>
   <text x="504" y="1150" class="card-copy">Customer-specific host validation</text>
   <text x="504" y="1172" class="card-copy">Craigslist pages and images only</text>
-  <text x="504" y="1220" class="card-small">Credential A-Browser</text>
+  <text x="504" y="1220" class="card-small">approval + isolated session A</text>
 
   <rect x="925" y="970" width="835" height="290" rx="24" fill="#302847" stroke="#9c71cc" stroke-width="2.5"/>
   <text x="955" y="1004" class="section">CUSTOMER SEGMENT: customer-N — REPEATABLE ONBOARDING PATTERN</text>
@@ -199,12 +199,12 @@
   <text x="991" y="1220" class="card-small">Credential N-Python</text>
 
   <rect x="1365" y="1040" width="380" height="196" rx="20" fill="url(#customerN)" class="card"/>
-  <text x="1395" y="1078" class="card-title">Separate Browser Sandbox</text>
+  <text x="1395" y="1078" class="card-title">Shared PWW Session</text>
   <text x="1395" y="1106" class="card-copy">Different endpoint and entitlement</text>
-  <text x="1395" y="1128" class="card-copy">Different browser bearer credential</text>
+  <text x="1395" y="1128" class="card-copy">separate ephemeral browser session</text>
   <text x="1395" y="1150" class="card-copy">Independent egress host policy</text>
   <text x="1395" y="1172" class="card-copy">Provision only when onboarded</text>
-  <text x="1395" y="1220" class="card-small">Credential N-Browser</text>
+  <text x="1395" y="1220" class="card-small">approval + isolated session N</text>
 
   <!-- Row2 -> Row3 connectors, confined to the 40px gap band between the zones (930-970) -->
   <path class="key" d="M1050 900 C 800 935, 400 945, 231 1040"/>

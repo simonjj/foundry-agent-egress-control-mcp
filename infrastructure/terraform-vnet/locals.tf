@@ -35,19 +35,18 @@ locals {
   broker_app_name       = "${var.prefix}-broker-${local.suffix}"
   express_env_name      = "${var.prefix}-sandbox-env-${local.suffix}"
   sandbox_group_name    = "${var.prefix}-sandbox-group-${local.suffix}"
-  vnet_connection_name  = "tools-egress"
+  playwright_workspace_name = substr(
+    "${var.prefix}-pww-${local.suffix}",
+    0,
+    24,
+  )
+  vnet_connection_name = "tools-egress"
 
   interpreter_source_files = [
     "../../src/interpreter/Dockerfile",
     "../../src/interpreter/requirements.txt",
     "../../src/interpreter/server.py",
     "../../src/interpreter/executor.py",
-  ]
-  browser_source_files = [
-    "../../src/browser/Dockerfile",
-    "../../src/browser/package.json",
-    "../../src/browser/package-lock.json",
-    "../../src/browser/server.mjs",
   ]
   gateway_source_files = [
     "../../src/gateway/Dockerfile",
@@ -63,11 +62,6 @@ locals {
 
   interpreter_image_tag = substr(
     sha256(join("", [for file in local.interpreter_source_files : filesha256(file)])),
-    0,
-    16,
-  )
-  browser_image_tag = substr(
-    sha256(join("", [for file in local.browser_source_files : filesha256(file)])),
     0,
     16,
   )
@@ -119,9 +113,36 @@ locals {
   ])
 
   interpreter_image = "${azurerm_container_registry.main.login_server}/python-interpreter:${local.interpreter_image_tag}"
-  browser_image     = "${azurerm_container_registry.main.login_server}/browser-mcp:${local.browser_image_tag}"
   gateway_image     = "${azurerm_container_registry.main.login_server}/foundry-gateway:${local.gateway_image_tag}"
   broker_image      = "${azurerm_container_registry.main.login_server}/tenant-mcp-broker:${local.broker_image_tag}"
+
+  playwright_workspace_id = try(
+    azapi_resource.playwright_workspace.output.properties.workspaceId,
+    null,
+  )
+  playwright_raw_dataplane_uri = try(
+    trimsuffix(azapi_resource.playwright_workspace.output.properties.dataplaneUri, "/"),
+    null,
+  )
+  playwright_dataplane_uri = (
+    local.playwright_raw_dataplane_uri != null && local.playwright_workspace_id != null
+    ? replace(
+      local.playwright_raw_dataplane_uri,
+      "/playwrightworkspaces/${local.playwright_workspace_id}",
+      "",
+    )
+    : null
+  )
+  playwright_browser_service_url = (
+    local.playwright_dataplane_uri != null && local.playwright_workspace_id != null
+    ? "${replace(local.playwright_dataplane_uri, "https://", "wss://")}/playwrightworkspaces/${local.playwright_workspace_id}/browsers"
+    : null
+  )
+  playwright_mcp_url = (
+    local.playwright_dataplane_uri != null && local.playwright_workspace_id != null
+    ? "${replace(local.playwright_dataplane_uri, ".api.playwright.microsoft.com", ".mcp.playwright.microsoft.com")}/playwrightworkspaces/${local.playwright_workspace_id}/mcp"
+    : null
+  )
 
   customer_craigslist_hosts = [
     "craigslist.org",

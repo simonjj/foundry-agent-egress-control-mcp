@@ -24,7 +24,6 @@ function Get-Output {
 $resourceGroup = Get-Output "resource_group_name"
 $gatewayEndpoint = Get-Output "foundry_gateway_endpoint"
 $interpreterHealth = (Get-Output "interpreter_mcp_url") -replace "/mcp$", "/health"
-$browserHealth = (Get-Output "browser_mcp_url") -replace "/mcp$", "/health"
 $gatewayName = az containerapp list `
     --resource-group $resourceGroup `
     --query "[?properties.configuration.ingress.fqdn=='$($gatewayEndpoint -replace '^https://', '')'].name | [0]" `
@@ -34,18 +33,15 @@ if (-not $gatewayName) {
     throw "Unable to find the internal Nginx Container App."
 }
 
-foreach ($healthEndpoint in @($interpreterHealth, $browserHealth)) {
-    $output = az containerapp exec `
-        --resource-group $resourceGroup `
-        --name $gatewayName `
-        --command "wget -qO- $healthEndpoint" 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "Private Sandbox health check failed for '$healthEndpoint': $($output -join [Environment]::NewLine)"
-    }
-    if (($output -join [Environment]::NewLine) -notmatch '"status":"ok"') {
-        throw "Private Sandbox health check for '$healthEndpoint' did not return healthy status."
-    }
-    Start-Sleep -Seconds 2
+$output = az containerapp exec `
+    --resource-group $resourceGroup `
+    --name $gatewayName `
+    --command "wget -qO- $interpreterHealth" 2>&1
+if ($LASTEXITCODE -ne 0) {
+    throw "Private Python Sandbox health check failed: $($output -join [Environment]::NewLine)"
+}
+if (($output -join [Environment]::NewLine) -notmatch '"status":"ok"') {
+    throw "Private Python Sandbox health check did not return healthy status."
 }
 
-Write-Host "Private gateway and Sandbox network checks passed."
+Write-Host "Private gateway and Python Sandbox network checks passed."

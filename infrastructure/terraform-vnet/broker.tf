@@ -125,11 +125,9 @@ resource "azurerm_container_app" "broker" {
         name = "CUSTOMER_ROUTES_JSON"
         value = var.enable_customer_routing ? jsonencode({
           (var.sandbox_customer_id) = {
-            python_mcp_url    = data.external.interpreter_sandbox[0].result.mcp_url
-            python_token_env  = "CUSTOMER_PYTHON_MCP_TOKEN"
-            browser_mcp_url   = data.external.browser_sandbox[0].result.mcp_url
-            browser_token_env = "CUSTOMER_BROWSER_MCP_TOKEN"
-            allowed_hosts     = local.customer_craigslist_hosts
+            python_mcp_url   = data.external.interpreter_sandbox[0].result.mcp_url
+            python_token_env = "CUSTOMER_PYTHON_MCP_TOKEN"
+            allowed_hosts    = local.customer_craigslist_hosts
           }
         }) : "{}"
       }
@@ -139,14 +137,6 @@ resource "azurerm_container_app" "broker" {
         content {
           name        = "CUSTOMER_PYTHON_MCP_TOKEN"
           secret_name = "customer-python-mcp-token"
-        }
-      }
-
-      dynamic "env" {
-        for_each = var.enable_customer_routing ? [1] : []
-        content {
-          name        = "CUSTOMER_BROWSER_MCP_TOKEN"
-          secret_name = "customer-browser-mcp-token"
         }
       }
 
@@ -177,14 +167,6 @@ resource "azurerm_container_app" "broker" {
     content {
       name  = "customer-python-mcp-token"
       value = random_password.mcp_token.result
-    }
-  }
-
-  dynamic "secret" {
-    for_each = var.enable_customer_routing ? [1] : []
-    content {
-      name  = "customer-browser-mcp-token"
-      value = random_password.browser_mcp_token.result
     }
   }
 

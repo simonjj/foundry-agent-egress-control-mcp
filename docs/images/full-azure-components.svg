@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="2100" height="1600" viewBox="0 0 2100 1600" role="img" aria-labelledby="title desc">
   <title id="title">Tenant-aware MCP solution — Azure component architecture</title>
-  <desc id="desc">Deployed personal-tenant proof showing Microsoft Entra ID, hub-and-spoke VNets, Azure AI Foundry, an internal Nginx inference gateway, a private MCP broker, per-customer ACA Sandboxes, Azure Container Registry, and Azure Monitor.</desc>
+  <desc id="desc">Deployed personal-tenant proof with private broker-routed Python Sandbox tools and a separate shared Playwright Workspace Toolbox.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#06172c"/>
@@ -163,7 +163,7 @@
   <text x="896" y="568" class="card-title">Private MCP broker · ss-personal-vnet-broker-v5y8fi</text>
   <text x="896" y="592" class="card-copy">Validate RS256 token · scope · tenant   →   SHA256(tid:oid) → customer route</text>
   <text x="896" y="616" class="card-copy">Resolve server-side route · inject per-route bearer key (never to model)</text>
-  <text x="896" y="646" class="card-small">identity: broker-id (UAMI) · secrets: entitlements + python/browser tokens</text>
+  <text x="896" y="646" class="card-small">identity: broker-id (UAMI) · secrets: entitlements + Python token</text>
   <text x="896" y="668" class="card-small">env: ENTRA_TENANT_ID · ENTRA_AUDIENCE · McpBroker.Invoke · CUSTOMER_ROUTES_JSON</text>
 
   <!-- express sandbox env -->
@@ -184,7 +184,7 @@
   <text x="914" y="978" class="card-small">image pulled from ACR (AcrPull)</text>
 
   <rect x="1240" y="828" width="326" height="230" rx="12" fill="url(#sandbox)" class="card"/>
-  <text x="1258" y="856" class="card-title">Dedicated Browser Sandbox</text>
+  <text x="1258" y="856" class="card-title">Shared Playwright Workspace</text>
   <text x="1258" y="880" class="card-copy">id 0f23c1bf-4614-…</text>
   <text x="1258" y="904" class="card-copy">browse_url · headless Chromium</text>
   <text x="1258" y="930" class="card-small">bearer: CUSTOMER_BROWSER_MCP_TOKEN</text>
@@ -207,9 +207,9 @@
   <text x="914" y="1336" class="card-small">provision only when onboarded</text>
 
   <rect x="1240" y="1204" width="326" height="186" rx="12" fill="url(#segn)" class="card"/>
-  <text x="1258" y="1232" class="card-title">Separate Browser Sandbox</text>
+  <text x="1258" y="1232" class="card-title">Separate PWW Session</text>
   <text x="1258" y="1256" class="card-copy">distinct endpoint + entitlement</text>
-  <text x="1258" y="1280" class="card-copy">distinct browser bearer credential</text>
+  <text x="1258" y="1280" class="card-copy">independent approval and session</text>
   <text x="1258" y="1312" class="card-small">independent egress policy</text>
   <text x="1258" y="1336" class="card-small">no access from customer-personal</text>
 
@@ -285,7 +285,7 @@
   <!-- 7 broker -> browser (down right margin) -->
   <path class="secret" d="M1560,690 C 1596,730 1596,880 1566,922"/>
   <rect x="1360" y="700" width="196" height="26" rx="8" class="chip" stroke="#ff8dc7"/>
-  <text x="1376" y="718" class="chip-text">⑤ browser route + key</text>
+  <text x="1376" y="718" class="chip-text">⑤ separate PWW Toolbox</text>
 
   <!-- 8 egress (personal down, customer-N up, into shared strip) -->
   <path class="web" d="M1061,1058 C 1061,1076 1061,1084 1061,1096"/>

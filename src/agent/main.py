@@ -42,8 +42,14 @@ def environment_enabled(name: str, default: bool) -> bool:
     return value.lower() in {"1", "true", "yes"}
 
 
-def toolbox_allowed_tools() -> list[str] | None:
-    configured = os.getenv("TOOLBOX_ALLOWED_TOOLS", "who_am_i").strip()
+def configured_toolbox_tools(
+    variable_name: str,
+    default: str | None = None,
+) -> list[str] | None:
+    configured = os.getenv(variable_name, default)
+    if configured is None:
+        return None
+    configured = configured.strip()
     if configured == "*":
         return None
     return [name.strip() for name in configured.split(",") if name.strip()]
@@ -141,51 +147,19 @@ def build_direct_tools():
         sse_read_timeout=120,
     )
 
-    tools = [mcp_tool]
-    browser_mode = "playwright-workspace"
-    browser_mcp_url = os.getenv("BROWSER_MCP_SERVER_URL")
-    browser_mcp_token = os.getenv("BROWSER_MCP_AUTH_TOKEN")
-    if browser_mcp_url or browser_mcp_token:
-        if not browser_mcp_url or not browser_mcp_token:
-            raise RuntimeError(
-                "BROWSER_MCP_SERVER_URL and BROWSER_MCP_AUTH_TOKEN must be "
-                "set together."
-            )
-        tools.append(
-            MCPStreamableHTTPTool(
-                name="sandbox_browser",
-                description=(
-                    "Private Playwright browser automation hosted in ACA Sandbox."
-                ),
-                url=browser_mcp_url,
-                allowed_tools=[
-                    "browser_navigate",
-                    "browser_snapshot",
-                    "browser_tabs",
-                ],
-                header_provider=lambda _kwargs: {
-                    "Authorization": f"Bearer {browser_mcp_token}"
-                },
-                approval_mode="never_require",
-                load_prompts=False,
-                request_timeout=120,
-                sse_read_timeout=180,
-            )
-        )
-        browser_mode = "aca-sandbox-mcp"
-    else:
-        tools.append(
-            FoundryChatClient.get_browser_automation_tool(
-                connection_id=required_environment("PLAYWRIGHT_CONNECTION_ID")
-            ).as_dict()
-        )
+    tools = [
+        mcp_tool,
+        FoundryChatClient.get_browser_automation_tool(
+            connection_id=required_environment("PLAYWRIGHT_CONNECTION_ID")
+        ).as_dict(),
+    ]
 
     if environment_enabled("ENABLE_FOUNDRY_WEB_SEARCH", True):
         tools.append(
             FoundryChatClient.get_web_search_tool(search_context_size="medium")
         )
 
-    return tools, browser_mode
+    return tools, "playwright-workspace"
 
 
 async def main() -> None:
@@ -220,24 +194,59 @@ async def main() -> None:
     client = FoundryChatClient(**client_options)
 
     diagnostic_endpoint = os.getenv("BROKER_NETWORK_DIAGNOSTIC_URL")
-    toolbox_endpoint = os.getenv("TOOLBOX_ENDPOINT")
+    tenant_toolbox_endpoint = (
+        os.getenv("TENANT_BROKER_TOOLBOX_ENDPOINT")
+        or os.getenv("TOOLBOX_ENDPOINT")
+    )
+    playwright_toolbox_endpoint = os.getenv("PLAYWRIGHT_TOOLBOX_ENDPOINT")
     if diagnostic_endpoint:
         tools = [diagnose_broker_network]
         browser_mode = "broker-network-diagnostic"
         primary_tool_name = "diagnose_broker_network"
-    elif toolbox_endpoint:
-        tools = LoggedFoundryToolbox(
-            credential,
-            url=toolbox_endpoint,
-            name=os.getenv("TOOLBOX_NAME") or "tenant_broker",
-            allowed_tools=toolbox_allowed_tools(),
-            approval_mode="never_require",
-            load_prompts=False,
-            request_timeout=120,
-            sse_read_timeout=180,
-        )
-        browser_mode = "tenant-broker-toolbox"
-        primary_tool_name = "tenant_broker"
+    elif tenant_toolbox_endpoint or playwright_toolbox_endpoint:
+        tools = []
+        toolbox_modes = []
+        if tenant_toolbox_endpoint:
+            tools.append(
+                LoggedFoundryToolbox(
+                    credential,
+                    url=tenant_toolbox_endpoint,
+                    name=os.getenv("TOOLBOX_NAME") or "tenant_broker",
+                    allowed_tools=configured_toolbox_tools(
+                        "TENANT_BROKER_TOOLBOX_ALLOWED_TOOLS",
+                        os.getenv("TOOLBOX_ALLOWED_TOOLS", "who_am_i"),
+                    ),
+                    approval_mode="never_require",
+                    load_prompts=False,
+                    request_timeout=120,
+                    sse_read_timeout=180,
+                )
+            )
+            toolbox_modes.append("tenant-broker")
+        if playwright_toolbox_endpoint:
+            playwright_allowed_tools = configured_toolbox_tools(
+                "PLAYWRIGHT_TOOLBOX_ALLOWED_TOOLS"
+            )
+            if not playwright_allowed_tools:
+                raise RuntimeError(
+                    "PLAYWRIGHT_TOOLBOX_ALLOWED_TOOLS must contain the exact "
+                    "curated Playwright Toolbox tool names."
+                )
+            tools.append(
+                LoggedFoundryToolbox(
+                    credential,
+                    url=playwright_toolbox_endpoint,
+                    name="playwright_browser",
+                    allowed_tools=playwright_allowed_tools,
+                    approval_mode="always_require",
+                    load_prompts=False,
+                    request_timeout=120,
+                    sse_read_timeout=180,
+                )
+            )
+            toolbox_modes.append("playwright-workspace")
+        browser_mode = "+".join(toolbox_modes) + "-toolbox"
+        primary_tool_name = "+".join(toolbox_modes)
     else:
         tools, browser_mode = build_direct_tools()
         primary_tool_name = "sandbox_python"
@@ -253,6 +262,13 @@ hosts it returns. When a who_am_i tool is available, use it only for explicit
 identity diagnostics and never repeat raw object or subject identifiers. When
 diagnose_broker_network is available, call it immediately and report its exact
 DNS addresses, HTTP status, and diagnostic stage.
+
+Use tenant broker tools for customer context, Python, and Craigslist search.
+Use Playwright Workspace tools only for browser rendering and interaction.
+Create a new browser session before browser operations and close it when the
+browser task is complete. Never reuse a browser session across requests or
+conversations. Every Playwright tool call requires explicit user approval;
+never bypass, batch, or infer approval. Report session cleanup failures.
 
 Always include the URLs of listings used in the answer. Clearly distinguish
 search or listing claims from your own calculations. Browser automation is

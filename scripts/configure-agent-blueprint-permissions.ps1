@@ -170,25 +170,52 @@ else {
 
 $blueprint = Invoke-GraphRequest -Method GET -Url $blueprintUrl
 $requiredResourceAccess = @(
-    $blueprint.requiredResourceAccess |
-        Where-Object { $_.resourceAppId -ne $BrokerClientId }
+    foreach ($resource in @($blueprint.requiredResourceAccess)) {
+        if ($resource.resourceAppId -eq $BrokerClientId) {
+            continue
+        }
+        [ordered]@{
+            resourceAppId = [string]$resource.resourceAppId
+            resourceAccess = [object[]]@(
+                foreach ($access in @($resource.resourceAccess)) {
+                    [ordered]@{
+                        id   = [string]$access.id
+                        type = [string]$access.type
+                    }
+                }
+            )
+        }
+    }
 )
 $brokerAccess = $blueprint.requiredResourceAccess |
     Where-Object { $_.resourceAppId -eq $BrokerClientId } |
     Select-Object -First 1
-$brokerScopes = @($brokerAccess.resourceAccess)
+$brokerScopes = [object[]]@(
+    foreach ($access in @($brokerAccess.resourceAccess)) {
+        [ordered]@{
+            id   = [string]$access.id
+            type = [string]$access.type
+        }
+    }
+)
 $requiredAccessChanged = $null -eq $brokerAccess
 if (@($brokerScopes.id) -notcontains $ScopeId) {
     $requiredAccessChanged = $true
-    $brokerScopes += [ordered]@{
+    $brokerScopes = [object[]]@(
+        $brokerScopes
+        [ordered]@{
         id   = $ScopeId
         type = "Scope"
+        }
+    )
+}
+$requiredResourceAccess = [object[]]@(
+    $requiredResourceAccess
+    [ordered]@{
+        resourceAppId = $BrokerClientId
+        resourceAccess = [object[]]$brokerScopes
     }
-}
-$requiredResourceAccess += [ordered]@{
-    resourceAppId = $BrokerClientId
-    resourceAccess = @($brokerScopes)
-}
+)
 
 if (
     $requiredAccessChanged -and
@@ -202,7 +229,7 @@ if (
         -Url $blueprintUrl `
         -Body ([ordered]@{
             "@odata.type"          = "#microsoft.graph.agentIdentityBlueprint"
-            requiredResourceAccess = @($requiredResourceAccess)
+            requiredResourceAccess = [object[]]$requiredResourceAccess
         }) | Out-Null
 }
 

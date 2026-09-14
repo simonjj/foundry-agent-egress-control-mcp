@@ -88,7 +88,7 @@ Private gateway and Sandbox network checks passed.
 ```
 
 This command executes from the internal Nginx Container App and proves that
-both private Sandbox endpoints resolve and return healthy responses.
+the retained private Python Sandbox endpoint resolves and returns healthy.
 
 ## 4. Confirm the Hosted Agent and tool routing
 
@@ -104,8 +104,8 @@ The script:
 1. temporarily enables bootstrap access;
 2. creates or updates the agent;
 3. grants the generated hosted-agent instance identity `Cognitive Services User`;
-4. validates private gateway and Sandbox networking;
-5. validates Python, governed search, browser automation, and SSE;
+4. validates private gateway and Python Sandbox networking;
+5. validates retained broker tools plus PWW rejection and approval flows;
 6. disables public access again; and
 7. reruns the internal private-network checks.
 
@@ -113,13 +113,13 @@ Expected tool results:
 
 | Tool | Expected result |
 |---|---|
-| Python Sandbox | `CODE_TOOL_OK` and `391` |
-| Governed Craigslist search | `SEARCH_TOOL_OK` and a Craigslist URL |
-| Private browser Sandbox | `BROWSER_TOOL_OK` and `Example Domain` |
+| Tenant broker | `customer-personal`, `391`, a Craigslist URL, and `BROKER_RETAINED_E2E_OK` |
+| PWW rejection | `create_browser_session` approval rejected with no `mcp_call` |
+| PWW success | Independent create/navigate/close approvals and `PWW_MCP_E2E_OK` |
 
-The VNet profile must not register Foundry-managed web search or Foundry-managed
-Browser Automation. Those managed tools are replaced by the private Sandbox
-adapters.
+The VNet profile does not register Foundry-managed web search. Browser
+automation uses a separate PWW Toolbox with an exact allowlist and
+`always_require` approval; the broker remains Python/search-only.
 
 ## 5. Confirm the private Nginx path
 

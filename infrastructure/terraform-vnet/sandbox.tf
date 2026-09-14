@@ -175,51 +175,6 @@ resource "terraform_data" "deploy_interpreter_sandbox" {
   ]
 }
 
-resource "terraform_data" "deploy_browser_sandbox" {
-  count = var.enable_sandbox_deployment ? 1 : 0
-
-  triggers_replace = [
-    azapi_resource.sandbox_vnet_connection.id,
-    local.browser_image_tag,
-    sha256(random_password.browser_mcp_token.result),
-    filesha256("../../scripts/deploy-sandbox-vnet.py"),
-  ]
-
-  provisioner "local-exec" {
-    interpreter = ["PowerShell", "-NoProfile", "-Command"]
-    working_dir = path.root
-    environment = {
-      MCP_AUTH_TOKEN = random_password.browser_mcp_token.result
-    }
-    command = join(" ", [
-      "& '${var.python_executable}' '../../scripts/deploy-sandbox-vnet.py'",
-      "--subscription-id '${var.subscription_id}'",
-      "--resource-group '${azurerm_resource_group.main.name}'",
-      "--location '${var.location}'",
-      "--sandbox-group '${local.sandbox_group_name}'",
-      "--sandbox-group-id '${azapi_resource.sandbox_group.id}'",
-      "--managed-identity-resource-id '${azurerm_user_assigned_identity.sandbox.id}'",
-      "--managed-identity-client-id '${azurerm_user_assigned_identity.sandbox.client_id}'",
-      "--registry-name '${azurerm_container_registry.main.name}'",
-      "--registry-auth-mode '${var.allow_registry_token_fallback ? "managed-identity-with-token-fallback" : "managed-identity"}'",
-      "--image '${local.browser_image}'",
-      "--image-tag '${local.browser_image_tag}'",
-      "--disk-name 'browser-mcp-${local.browser_image_tag}'",
-      "--token-fingerprint '${substr(sha256(random_password.browser_mcp_token.result), 0, 16)}'",
-      "--vnet-connection '${local.vnet_connection_name}'",
-      "--customer-id '${var.sandbox_customer_id}'",
-      "--craigslist-site '${var.sandbox_craigslist_site}'",
-      "--profile 'browser'",
-    ])
-  }
-
-  depends_on = [
-    time_sleep.developer_sandbox_data_owner,
-    time_sleep.sandbox_registry_pull,
-    terraform_data.build_browser_image,
-  ]
-}
-
 data "external" "interpreter_sandbox" {
   count = var.enable_sandbox_deployment ? 1 : 0
 
@@ -238,24 +193,4 @@ data "external" "interpreter_sandbox" {
   }
 
   depends_on = [terraform_data.deploy_interpreter_sandbox]
-}
-
-data "external" "browser_sandbox" {
-  count = var.enable_sandbox_deployment ? 1 : 0
-
-  program = [var.python_executable, "${path.root}/../../scripts/get-sandbox-vnet-output.py"]
-  query = {
-    application        = "state-street-vnets"
-    component          = "browser-automation"
-    subscription_id    = var.subscription_id
-    resource_group     = azurerm_resource_group.main.name
-    location           = var.location
-    sandbox_group_name = local.sandbox_group_name
-    image_tag          = local.browser_image_tag
-    token_fingerprint  = substr(sha256(random_password.browser_mcp_token.result), 0, 16)
-    customer_id        = var.sandbox_customer_id
-    port               = "8080"
-  }
-
-  depends_on = [terraform_data.deploy_browser_sandbox]
 }

@@ -58,22 +58,37 @@ output "interpreter_mcp_url" {
   value = var.enable_sandbox_deployment ? data.external.interpreter_sandbox[0].result.mcp_url : null
 }
 
-output "browser_sandbox_id" {
-  value = var.enable_sandbox_deployment ? data.external.browser_sandbox[0].result.sandbox_id : null
-}
-
-output "browser_mcp_url" {
-  value = var.enable_sandbox_deployment ? data.external.browser_sandbox[0].result.mcp_url : null
-}
-
 output "mcp_auth_token" {
   value     = random_password.mcp_token.result
   sensitive = true
 }
 
-output "browser_mcp_auth_token" {
-  value     = random_password.browser_mcp_token.result
-  sensitive = true
+output "playwright_workspace_resource_id" {
+  value = azapi_resource.playwright_workspace.id
+}
+
+output "playwright_workspace_name" {
+  value = azapi_resource.playwright_workspace.name
+}
+
+output "playwright_workspace_id" {
+  value = local.playwright_workspace_id
+}
+
+output "playwright_workspace_provisioning_state" {
+  value = try(azapi_resource.playwright_workspace.output.properties.provisioningState, null)
+}
+
+output "playwright_dataplane_uri" {
+  value = local.playwright_dataplane_uri
+}
+
+output "playwright_browser_service_url" {
+  value = local.playwright_browser_service_url
+}
+
+output "playwright_mcp_url" {
+  value = local.playwright_mcp_url
 }
 
 output "container_registry_name" {
@@ -111,7 +126,8 @@ output "network_access_mode" {
 
 output "platform_public_exceptions" {
   value = [
-    "Craigslist search and browser navigation require controlled public egress from the Sandbox.",
+    "Craigslist search requires controlled public egress from the Python Sandbox.",
+    "Playwright Workspace browser traffic uses the managed service public data plane.",
     "Azure control-plane and Entra authentication endpoints remain public platform dependencies.",
   ]
 }

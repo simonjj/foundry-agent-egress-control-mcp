@@ -16,6 +16,31 @@ variable "location" {
   default     = "centralus"
 }
 
+variable "playwright_location" {
+  description = "Azure region for the shared Playwright Workspace."
+  type        = string
+  default     = "westus3"
+
+  validation {
+    condition     = can(regex("^[a-z0-9]+$", var.playwright_location))
+    error_message = "playwright_location must be a lowercase Azure region name."
+  }
+}
+
+variable "playwright_deployment_principal_type" {
+  description = "Microsoft Entra principal type applying Terraform and creating Playwright access tokens."
+  type        = string
+  default     = "User"
+
+  validation {
+    condition = contains(
+      ["User", "ServicePrincipal"],
+      var.playwright_deployment_principal_type,
+    )
+    error_message = "playwright_deployment_principal_type must be User or ServicePrincipal."
+  }
+}
+
 variable "resource_group_name" {
   description = "Dedicated resource group for the VNet architecture."
   type        = string

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
   <title id="title">State Street private VNet Foundry agent architecture</title>
-  <desc id="desc">A rendered architecture showing a VNet-injected Foundry Hosted Agent, internal Nginx gateway, private Foundry and monitoring endpoints, and private ACA Sandbox tools with governed public-web egress.</desc>
+  <desc id="desc">A rendered architecture showing a VNet-injected Foundry Hosted Agent, internal Nginx gateway, a private Python Sandbox, and a shared Playwright Workspace Toolbox.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#07182e"/>
@@ -71,8 +71,8 @@
   <text x="150" y="611" class="box-copy">Model requests: internal Nginx</text>
   <text x="150" y="636" class="box-copy">Python: private MCP endpoint</text>
   <text x="150" y="661" class="box-copy">Search: Sandbox Craigslist adapter</text>
-  <text x="150" y="686" class="box-copy">Browser: private Playwright MCP</text>
-  <text x="150" y="720" class="small">No managed web search or managed browser</text>
+  <text x="150" y="686" class="box-copy">Browser: approval-gated PWW Toolbox</text>
+  <text x="150" y="720" class="small">Shared Workspace; exact browser allowlist</text>
 
   <rect x="550" y="205" width="460" height="615" rx="24" fill="#113a4c" stroke="#3caab4" stroke-width="2"/>
   <text x="580" y="244" class="zone-title">Tools spoke - 10.63.0.0/16</text>
@@ -93,9 +93,9 @@
   <text x="615" y="686" class="small">VNet: tools-egress</text>
 
   <rect x="790" y="470" width="180" height="245" rx="20" fill="#087f83" class="card"/>
-  <text x="815" y="510" class="box-title">Browser MCP</text>
-  <text x="815" y="541" class="box-copy">ACA Sandbox</text>
-  <text x="815" y="566" class="box-copy">Playwright Chromium</text>
+  <text x="815" y="510" class="box-title">Playwright Workspace</text>
+  <text x="815" y="541" class="box-copy">Foundry Toolbox remote MCP</text>
+  <text x="815" y="566" class="box-copy">Per-action approval</text>
   <text x="815" y="591" class="box-copy">Read-only policy</text>
   <text x="815" y="625" class="box-copy">Bearer auth</text>
   <text x="815" y="650" class="box-copy">Allowlisted hosts</text>

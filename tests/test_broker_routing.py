@@ -14,7 +14,6 @@ from routing import (  # noqa: E402
     CustomerRoutingConfigurationError,
     identity_key,
     require_allowed_craigslist_site,
-    require_allowed_https_url,
 )
 
 
@@ -30,8 +29,6 @@ class CustomerRoutingTests(unittest.TestCase):
                     "customer-personal": {
                         "python_mcp_url": "https://python.example.test/mcp",
                         "python_token_env": "PYTHON_TOKEN",
-                        "browser_mcp_url": "https://browser.example.test/mcp",
-                        "browser_token_env": "BROWSER_TOKEN",
                         "allowed_hosts": [
                             "seattle.craigslist.org",
                             "www.craigslist.org",
@@ -40,7 +37,6 @@ class CustomerRoutingTests(unittest.TestCase):
                 }
             ),
             "PYTHON_TOKEN": "python-secret",
-            "BROWSER_TOKEN": "browser-secret",
         }
 
     def test_resolves_validated_identity_to_customer_route(self) -> None:
@@ -55,7 +51,6 @@ class CustomerRoutingTests(unittest.TestCase):
             ("seattle.craigslist.org", "www.craigslist.org"),
         )
         self.assertNotIn("python-secret", repr(route))
-        self.assertNotIn("browser-secret", repr(route))
 
     def test_rejects_unentitled_identity(self) -> None:
         with patch.dict(os.environ, self._environment(), clear=True):
@@ -80,25 +75,8 @@ class CustomerRoutingTests(unittest.TestCase):
             require_allowed_craigslist_site("Seattle", allowed_hosts),
             "seattle",
         )
-        self.assertEqual(
-            require_allowed_https_url(
-                "https://seattle.craigslist.org/search/sss",
-                allowed_hosts,
-            ),
-            "https://seattle.craigslist.org/search/sss",
-        )
         with self.assertRaises(PermissionError):
             require_allowed_craigslist_site("houston", allowed_hosts)
-        with self.assertRaises(PermissionError):
-            require_allowed_https_url(
-                "https://houston.craigslist.org/search/sss",
-                allowed_hosts,
-            )
-        with self.assertRaises(ValueError):
-            require_allowed_https_url(
-                "http://seattle.craigslist.org/search/sss",
-                allowed_hosts,
-            )
 
 
 if __name__ == "__main__":

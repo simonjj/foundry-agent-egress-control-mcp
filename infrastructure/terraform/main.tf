@@ -23,11 +23,6 @@ resource "random_password" "mcp_auth_token" {
   special = false
 }
 
-resource "random_password" "browser_mcp_auth_token" {
-  length  = 64
-  special = false
-}
-
 resource "azurerm_resource_group" "this" {
   name     = var.resource_group_name
   location = var.location
@@ -303,79 +298,6 @@ data "external" "interpreter_sandbox" {
   }
 
   depends_on = [terraform_data.interpreter_sandbox]
-}
-
-data "external" "browser_sandbox_profile" {
-  program = [
-    "pwsh",
-    "-NoProfile",
-    "-File",
-    abspath("${path.module}/../../scripts/deploy-sandbox.ps1"),
-    "-Profile",
-    "browser",
-    "-DescribeProfile",
-  ]
-}
-
-resource "terraform_data" "browser_sandbox" {
-  triggers_replace = {
-    image_hash           = local.browser_source_hash
-    token_fingerprint    = local.browser_token_fingerprint
-    sandbox_group_id     = azapi_resource.sandbox_group.id
-    sandbox_group_name   = local.sandbox_group_name
-    config_fingerprint   = data.external.browser_sandbox_profile.result.config_fingerprint
-    workflow_fingerprint = filesha256(abspath("${path.module}/../../scripts/deploy-sandbox.ps1"))
-  }
-
-  provisioner "local-exec" {
-    interpreter = ["pwsh", "-NoProfile", "-Command"]
-    command = join(" ", compact([
-      "& '${abspath("${path.module}/../../scripts/deploy-sandbox.ps1")}'",
-      "-SubscriptionId '${var.subscription_id}'",
-      "-ResourceGroupName '${azurerm_resource_group.this.name}'",
-      "-Location '${var.location}'",
-      "-SandboxGroupName '${local.sandbox_group_name}'",
-      "-RegistryName '${azurerm_container_registry.this.name}'",
-      "-RegistryLoginServer '${azurerm_container_registry.this.login_server}'",
-      "-ImageTag '${local.browser_image_tag}'",
-      "-TokenFingerprint '${local.browser_token_fingerprint}'",
-      "-McpAuthToken $env:MCP_AUTH_TOKEN",
-      "-Profile 'browser'",
-      var.allow_registry_token_fallback ? "-AllowRegistryTokenFallback" : "",
-    ]))
-
-    environment = {
-      MCP_AUTH_TOKEN = random_password.browser_mcp_auth_token.result
-    }
-  }
-
-  depends_on = [
-    azurerm_role_assignment.sandbox_acr_pull,
-    azurerm_role_assignment.sandbox_operator,
-  ]
-}
-
-data "external" "browser_sandbox" {
-  program = [
-    "pwsh",
-    "-NoProfile",
-    "-File",
-    abspath("${path.module}/../../scripts/get-sandbox-output.ps1"),
-  ]
-
-  query = {
-    component                 = "browser-automation"
-    config_fingerprint        = data.external.browser_sandbox_profile.result.config_fingerprint
-    image_tag                 = local.browser_image_tag
-    legacy_config_fingerprint = data.external.browser_sandbox_profile.result.legacy_config_fingerprint
-    location                  = var.location
-    resource_group            = azurerm_resource_group.this.name
-    sandbox_group_name        = local.sandbox_group_name
-    subscription_id           = var.subscription_id
-    token_fingerprint         = local.browser_token_fingerprint
-  }
-
-  depends_on = [terraform_data.browser_sandbox]
 }
 
 resource "azapi_resource" "playwright_workspace" {

@@ -9,7 +9,7 @@ param(
     [string]$ImageTag,
     [string]$TokenFingerprint,
     [string]$McpAuthToken,
-    [ValidateSet("code-interpreter", "browser")][string]$Profile = "code-interpreter",
+    [ValidateSet("code-interpreter")][string]$Profile = "code-interpreter",
     [switch]$DescribeProfile,
     [switch]$AllowRegistryTokenFallback
 )
@@ -78,51 +78,7 @@ function Invoke-AcaJson {
 }
 
 $root = Split-Path $PSScriptRoot -Parent
-$profileConfiguration = if ($Profile -eq "browser") {
-    [ordered]@{
-        sourceDirectory = Join-Path $root "src\browser"
-        repository      = "playwright-mcp"
-        diskPrefix      = "playwright-mcp"
-        component       = "browser-automation"
-        legacyConfigFingerprint = "10ea2d3554fecef6"
-        resources       = [ordered]@{
-            cpu    = "2000m"
-            memory = "4096Mi"
-        }
-        entrypoint      = @("node", "/app/server.mjs")
-        environment     = [ordered]@{
-            MCP_AUTH_TOKEN     = $McpAuthToken
-            MCP_PORT           = "8080"
-            PLAYWRIGHT_MCP_PORT = "8931"
-        }
-        hostRules       = @(
-            [ordered]@{ pattern = "example.com"; action = "Allow" }
-            [ordered]@{ pattern = "craigslist.org"; action = "Allow" }
-            [ordered]@{ pattern = "*.craigslist.org"; action = "Allow" }
-            [ordered]@{ pattern = "learn.microsoft.com"; action = "Allow" }
-            [ordered]@{ pattern = "playwright.dev"; action = "Allow" }
-        )
-        lifecyclePolicy = [ordered]@{
-            autoSuspendPolicy = [ordered]@{
-                enabled  = $false
-                interval = 0
-                mode     = "Memory"
-            }
-            autoDeletePolicy = [ordered]@{
-                enabled                 = $false
-                deleteIntervalInSeconds = 0
-            }
-        }
-        ports = @(
-            [ordered]@{
-                port = 8080
-                auth = [ordered]@{ anonymous = $true }
-            }
-        )
-    }
-}
-else {
-    [ordered]@{
+$profileConfiguration = [ordered]@{
         sourceDirectory = Join-Path $root "src\interpreter"
         repository      = "python-code-mcp"
         diskPrefix      = "python-code"
@@ -151,7 +107,6 @@ else {
             autoDeletePolicy = [ordered]@{
                 enabled                 = $false
                 deleteIntervalInSeconds = 0
-            }
         }
         ports = @(
             [ordered]@{

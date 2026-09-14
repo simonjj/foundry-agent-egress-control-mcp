@@ -162,6 +162,48 @@ function Write-ConnectionSummary {
     $summary | ConvertTo-Json -Depth 8
 }
 
+function Register-ConnectionRedirectUris {
+    param(
+        [Parameter(Mandatory)]$Connection,
+        [Parameter(Mandatory)][string]$ApplicationClientId
+    )
+
+    $connectionRedirectUris = @(Find-RedirectUris -Value $Connection)
+    if ($connectionRedirectUris.Count -eq 0) {
+        throw "OAuth2 connection did not expose a consent callback URL."
+    }
+
+    $existingRedirectUrisJson = & az ad app show `
+        --id $ApplicationClientId `
+        --query "web.redirectUris" `
+        --only-show-errors `
+        --output json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to read existing broker application callback URIs."
+    }
+    $redirectUris = @(
+        @($existingRedirectUrisJson | ConvertFrom-Json)
+        $connectionRedirectUris
+    ) |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        Sort-Object -Unique
+
+    $updateArguments = @(
+        "ad",
+        "app",
+        "update",
+        "--id",
+        $ApplicationClientId,
+        "--web-redirect-uris"
+    )
+    $updateArguments += @($redirectUris)
+    $updateArguments += "--only-show-errors"
+    & az @updateArguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "OAuth2 callback registration failed."
+    }
+}
+
 Assert-Guid -Name "SubscriptionId" -Value $SubscriptionId
 Assert-Guid -Name "TenantId" -Value $TenantId
 Assert-Guid -Name "ClientId" -Value $ClientId
@@ -210,8 +252,12 @@ else {
 }
 
 if ($connectionExists -and -not $Force) {
+    $existingConnection = $existingJson | ConvertFrom-Json
+    Register-ConnectionRedirectUris `
+        -Connection $existingConnection `
+        -ApplicationClientId $ClientId
     Write-ConnectionSummary `
-        -Connection ($existingJson | ConvertFrom-Json) `
+        -Connection $existingConnection `
         -Status "existing" `
         -ExpectedClientId $ClientId
     return
@@ -313,8 +359,13 @@ try {
         throw "OAuth2 connection was created but could not be read back."
     }
 
+    $connection = $connectionJson | ConvertFrom-Json
+    Register-ConnectionRedirectUris `
+        -Connection $connection `
+        -ApplicationClientId $ClientId
+
     Write-ConnectionSummary `
-        -Connection ($connectionJson | ConvertFrom-Json) `
+        -Connection $connection `
         -Status $(if ($connectionExists) { "replaced" } else { "created" }) `
         -ExpectedClientId $ClientId
 }

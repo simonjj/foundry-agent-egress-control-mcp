@@ -23,7 +23,6 @@ from routing import (
     CustomerRoute,
     CustomerRouter,
     require_allowed_craigslist_site,
-    require_allowed_https_url,
 )
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -241,17 +240,10 @@ def _result_payload(result: Any) -> dict[str, Any]:
 
 async def _call_sandbox_tools(
     route: CustomerRoute,
-    sandbox_type: str,
     calls: list[tuple[str, dict[str, Any]]],
 ) -> list[dict[str, Any]]:
-    if sandbox_type == "python":
-        endpoint = route.python_mcp_url
-        token = route.python_token
-    elif sandbox_type == "browser":
-        endpoint = route.browser_mcp_url
-        token = route.browser_token
-    else:
-        raise ValueError("Unsupported Sandbox type.")
+    endpoint = route.python_mcp_url
+    token = route.python_token
 
     timeout = httpx.Timeout(
         SANDBOX_REQUEST_TIMEOUT_SECONDS,
@@ -265,9 +257,8 @@ async def _call_sandbox_tools(
         "User-Agent": "state-street-tenant-aware-broker/1.0",
     }
     LOGGER.info(
-        "sandbox_route_started customer_id=%s sandbox_type=%s tools=%s",
+        "sandbox_route_started customer_id=%s sandbox_type=python tools=%s",
         route.customer_id,
-        sandbox_type,
         ",".join(name for name, _ in calls),
     )
     async with SANDBOX_CALL_LIMIT:
@@ -301,9 +292,8 @@ async def _call_sandbox_tools(
                         for name, arguments in calls
                     ]
     LOGGER.info(
-        "sandbox_route_completed customer_id=%s sandbox_type=%s",
+        "sandbox_route_completed customer_id=%s sandbox_type=python",
         route.customer_id,
-        sandbox_type,
     )
     return results
 
@@ -351,7 +341,6 @@ async def run_python(
     route = current_customer_route()
     results = await _call_sandbox_tools(
         route,
-        "python",
         [("run_python", {"code": code, "timeout_seconds": timeout_seconds})],
     )
     return results[0]
@@ -376,7 +365,6 @@ async def search_craigslist(
     allowed_site = require_allowed_craigslist_site(site, route.allowed_hosts)
     results = await _call_sandbox_tools(
         route,
-        "python",
         [
             (
                 "search_craigslist",
@@ -385,26 +373,6 @@ async def search_craigslist(
         ],
     )
     return results[0]
-
-
-@mcp.tool()
-async def browse_url(url: str) -> dict[str, Any]:
-    """Navigate to an approved HTTPS URL and return a browser snapshot."""
-
-    route = current_customer_route()
-    allowed_url = require_allowed_https_url(url, route.allowed_hosts)
-    navigation, snapshot = await _call_sandbox_tools(
-        route,
-        "browser",
-        [
-            ("browser_navigate", {"url": allowed_url}),
-            ("browser_snapshot", {}),
-        ],
-    )
-    return {
-        "navigation": navigation,
-        "snapshot": snapshot,
-    }
 
 
 @mcp.custom_route("/health", methods=["GET"])

@@ -11,11 +11,12 @@ boundaries and ownership over individual Azure resource names.
 
 ![Tenant-aware MCP runtime call flow](images/tenant-aware-mcp-call-flow-2.svg)
 
-The shared Hosted Agent exposes only four exact Toolbox function names. The
-OAuth2 Toolbox sends a delegated broker token over the private DataProxy path.
-The broker validates the token, derives the customer entitlement, and injects
-only the selected route's server-side Sandbox credential. Tool output returns
-through the same broker request and becomes model response content.
+The shared Hosted Agent uses two Toolboxes. The OAuth2 broker Toolbox exposes
+customer context, Python, and search; the broker validates delegated identity
+and injects only the selected Python Sandbox credential. The separate PWW
+Toolbox connects directly to the shared Playwright Workspace remote MCP,
+exposes a curated browser allowlist, and requires runtime approval for every
+browser action.
 
 ## Customer segmentation, authentication, and data/key flow
 
@@ -26,17 +27,22 @@ The security boundary is the broker:
 - `tid` and `oid` are read only from the validated delegated token.
 - `SHA256("<tenant-id>:<object-id>")` selects an entitlement without storing
   raw identity IDs in the routing configuration.
-- The entitlement selects a customer route containing MCP endpoints, secret
-  environment-variable names, and approved hosts.
-- Distinct Python and browser bearer credentials are injected from Container
-  App secrets and remain server-side.
+- The entitlement selects a customer route containing the Python MCP endpoint,
+  its secret environment-variable name, and approved Craigslist hosts.
+- The Python bearer credential remains server-side in the broker.
 - The model cannot choose a customer, endpoint, credential, or allowed host.
+- PWW is shared across customers; separation relies on customer-specific
+  delegated principals/tokens where supported, exact tool allowlisting,
+  per-action approval, and non-reused browser sessions rather than a
+  per-customer VNet or private endpoint.
 - `customer-personal` is deployed. `customer-N` illustrates the same isolated
   onboarding pattern and is not presented as an additional deployed customer.
 
-The active proof uses Hosted Agent version `11`, Toolbox
-`personal-agent-oauth-proof:2`, connection `mcp-oauth`, and the dedicated
-`customer-personal` Python and browser Sandboxes.
+The active proof uses Hosted Agent version `2`, broker Toolbox
+`personal-agent-oauth-proof:1`, PWW Toolbox
+`playwright-browser-automation:1`, connection `mcp-oauth`, one dedicated
+`customer-personal` Python Sandbox, and shared Workspace
+`ss-personal-vnet-pww-e0w`.
 
 ## Full Azure component architecture
 
@@ -51,16 +57,19 @@ concrete Azure services behind the flow above:
   `gpt-5-mini` deployment, and the Hosted Agent with its OAuth2 Toolbox.
 - **Tools spoke** — the ACA managed environment (internal load balancer) hosting
   the internal Nginx inference gateway and the private MCP broker Container App,
-  plus the ACA Express Sandbox environment hosting the per-customer Python and
-  browser Sandboxes.
+  plus the ACA Express Sandbox environment hosting the per-customer Python
+  Sandbox.
+- **Managed browser service** — the shared West US 3 Playwright Workspace and
+  its project-scoped Custom Keys connection; this path is outside the customer
+  VNet and private broker route.
 - **Shared-services spoke** — Azure Container Registry, Azure Monitor
   (Log Analytics + Application Insights), and the user-assigned managed
   identities (`gateway-id`, `broker-id`, `sandbox-id`) that hold `AcrPull`.
 - **Hub** — the central private endpoints for Foundry, ACR, and the Sandbox
   environment, with private DNS zones linked to every spoke.
 
-All model inference flows through the internal Nginx gateway to the Foundry
-private endpoint; tool calls travel the OAuth2 Toolbox/DataProxy path to the
-broker, which injects per-route Sandbox bearer keys server-side. Foundry and ACR
-are intentionally public for the active development cycle while Terraform retains
-the private desired state.
+All model inference flows through the internal Nginx gateway. Broker tool calls
+travel the OAuth2 Toolbox/DataProxy path and remain customer-routed; PWW calls
+travel through the separate direct Toolbox. The current live canary uses
+`network_access_mode=playground` so the Foundry Playground and deployment APIs
+remain accessible. Set `network_access_mode=private` for final lockdown.

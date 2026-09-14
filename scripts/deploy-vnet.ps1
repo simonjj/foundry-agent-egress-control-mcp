@@ -9,6 +9,9 @@ param(
     [string]$Prefix = "ss-vnet",
     [string]$FoundryModelName = "gpt-5.4-mini",
     [string]$FoundryModelVersion = "2026-03-17",
+    [string]$PlaywrightLocation = "westus3",
+    [ValidateRange(1, 90)]
+    [int]$PlaywrightTokenDays = 30,
     [ValidateSet("private", "playground")]
     [string]$NetworkAccessMode = "private",
     [string]$DeploymentProfile = "vnet",
@@ -24,6 +27,7 @@ param(
     [string]$SandboxCraigslistSite = "seattle",
     [string]$BrokerCustomerIdentityHash = "",
     [string]$TerraformPath = "",
+    [switch]$SkipPlaywrightBootstrap,
     [switch]$SkipAgentDeployment,
     [switch]$LeavePublicAccessEnabled
 )
@@ -228,11 +232,28 @@ if ($previousWorkspace -ne $TerraformWorkspace) {
     }
 }
 
-$stateResources = @(
-    & $TerraformPath "-chdir=$infraDirectory" state list
-)
-if ($LASTEXITCODE -ne 0) {
-    throw "Unable to inspect the selected Terraform workspace state."
+$nativeCommandPreference = $PSNativeCommandUseErrorActionPreference
+$PSNativeCommandUseErrorActionPreference = $false
+try {
+    $stateListOutput = & $TerraformPath `
+        "-chdir=$infraDirectory" state list 2>&1
+    $stateListExitCode = $LASTEXITCODE
+}
+finally {
+    $PSNativeCommandUseErrorActionPreference = $nativeCommandPreference
+}
+if ($stateListExitCode -eq 0) {
+    $stateResources = @($stateListOutput)
+}
+elseif (($stateListOutput -join [Environment]::NewLine) -match
+    '(?i)no state file was found') {
+    $stateResources = @()
+}
+else {
+    throw (
+        "Unable to inspect the selected Terraform workspace state. " +
+        ($stateListOutput -join [Environment]::NewLine)
+    )
 }
 $identityBrokerExists = (
     $stateResources -contains "azurerm_container_app.broker[0]"
@@ -263,6 +284,7 @@ Invoke-Checked -Command $TerraformPath -Arguments @(
     "-var=tenant_id=$TenantId",
     "-var=resource_group_name=$ResourceGroupName",
     "-var=location=$Location",
+    "-var=playwright_location=$PlaywrightLocation",
     "-var=prefix=$Prefix",
     "-var=foundry_model_name=$FoundryModelName",
     "-var=foundry_model_version=$FoundryModelVersion",
@@ -284,6 +306,33 @@ Invoke-Checked -Command $TerraformPath -Arguments @(
     "-auto-approve",
     $stageOnePlan
 )
+
+$playwrightBootstrap = $null
+if (-not $SkipPlaywrightBootstrap) {
+    $playwrightEvidence = Join-Path (
+        $infraDirectory
+    ) ".terraform\playwright-tool-inventory-$safeWorkspace.json"
+    $bootstrapOutput = & python (
+        Join-Path $PSScriptRoot "configure-playwright-workspace-mcp.py"
+    ) `
+        --project-resource-id (Get-TerraformOutput "foundry_project_id") `
+        --project-endpoint (Get-TerraformOutput "foundry_project_endpoint") `
+        --workspace-id (Get-TerraformOutput "playwright_workspace_id") `
+        --dataplane-uri (Get-TerraformOutput "playwright_dataplane_uri") `
+        --mcp-url (Get-TerraformOutput "playwright_mcp_url") `
+        --token-days $PlaywrightTokenDays `
+        --evidence-file $playwrightEvidence `
+        --promote
+    if ($LASTEXITCODE -ne 0) {
+        throw "Playwright Workspace MCP bootstrap failed."
+    }
+    $playwrightBootstrap = ($bootstrapOutput -join [Environment]::NewLine) |
+        ConvertFrom-Json
+    if (-not $playwrightBootstrap.toolbox_endpoint -or
+        -not $playwrightBootstrap.allowed_tools) {
+        throw "Playwright Workspace MCP bootstrap returned incomplete metadata."
+    }
+}
 
 try {
     azd env select $AzdEnvironment --cwd $deploymentDirectory --no-prompt |
@@ -316,10 +365,19 @@ $azdValues = [ordered]@{
     PRIVATE_FOUNDRY_GATEWAY_ENDPOINT      = Get-TerraformOutput "foundry_gateway_endpoint"
     MCP_SERVER_URL                        = Get-TerraformOutput "interpreter_mcp_url"
     MCP_AUTH_TOKEN                        = Get-TerraformOutput "mcp_auth_token"
-    BROWSER_MCP_SERVER_URL                = Get-TerraformOutput "browser_mcp_url"
-    BROWSER_MCP_AUTH_TOKEN                = Get-TerraformOutput "browser_mcp_auth_token"
     APPLICATION_INSIGHTS_NAME             = Get-TerraformOutput "application_insights_name"
     APPLICATIONINSIGHTS_CONNECTION_STRING = Get-TerraformOutput "application_insights_connection_string"
+}
+if ($playwrightBootstrap) {
+    $azdValues.PLAYWRIGHT_CONNECTION_ID = (
+        $playwrightBootstrap.connection_id
+    )
+    $azdValues.PLAYWRIGHT_TOOLBOX_ENDPOINT = (
+        $playwrightBootstrap.toolbox_endpoint
+    )
+    $azdValues.PLAYWRIGHT_TOOLBOX_ALLOWED_TOOLS = (
+        $playwrightBootstrap.allowed_tools -join ","
+    )
 }
 if ($EnableIdentityBroker) {
     $azdValues.IDENTITY_BROKER_ENDPOINT = Get-TerraformOutput "identity_broker_endpoint"
@@ -397,6 +455,7 @@ if ($lockdownRequired) {
         "-var=tenant_id=$TenantId",
         "-var=resource_group_name=$ResourceGroupName",
         "-var=location=$Location",
+        "-var=playwright_location=$PlaywrightLocation",
         "-var=prefix=$Prefix",
         "-var=foundry_model_name=$FoundryModelName",
         "-var=foundry_model_version=$FoundryModelVersion",
@@ -433,4 +492,4 @@ if ($previousWorkspace -ne $TerraformWorkspace) {
 Write-Host "VNet deployment complete."
 Write-Host "Resource group: $ResourceGroupName"
 Write-Host "Azd environment: $AzdEnvironment"
-Write-Host "Existing ss-agent-day3 resources and Sandboxes were preserved."
+Write-Host "Existing ss-agent-day3 resources and the Python Sandbox were preserved."

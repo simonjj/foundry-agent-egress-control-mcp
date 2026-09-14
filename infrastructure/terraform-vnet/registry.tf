@@ -55,25 +55,6 @@ resource "terraform_data" "build_interpreter_image" {
   }
 }
 
-resource "terraform_data" "build_browser_image" {
-  triggers_replace = [
-    azurerm_container_registry.main.id,
-    local.browser_image_tag,
-    filesha256("../../scripts/build-acr-image.ps1"),
-  ]
-
-  provisioner "local-exec" {
-    interpreter = ["PowerShell", "-NoProfile", "-Command"]
-    working_dir = path.root
-    command = join(" ", [
-      "& '../../scripts/build-acr-image.ps1'",
-      "-Registry '${azurerm_container_registry.main.name}'",
-      "-Component 'browser'",
-      "-ImageTag '${local.browser_image_tag}'",
-    ])
-  }
-}
-
 resource "terraform_data" "build_gateway_image" {
   triggers_replace = [
     azurerm_container_registry.main.id,

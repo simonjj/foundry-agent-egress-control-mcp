@@ -25,8 +25,6 @@ class CustomerRoute:
     customer_id: str
     python_mcp_url: str
     python_token: str = field(repr=False)
-    browser_mcp_url: str
-    browser_token: str = field(repr=False)
     allowed_hosts: tuple[str, ...]
 
 
@@ -182,18 +180,12 @@ class CustomerRouter:
                 )
 
             python_token_env = route_raw.get("python_token_env")
-            browser_token_env = route_raw.get("browser_token_env")
             if not isinstance(python_token_env, str) or not python_token_env:
                 raise CustomerRoutingConfigurationError(
                     "python_token_env must name an environment variable."
                 )
-            if not isinstance(browser_token_env, str) or not browser_token_env:
-                raise CustomerRoutingConfigurationError(
-                    "browser_token_env must name an environment variable."
-                )
             python_token = os.getenv(python_token_env)
-            browser_token = os.getenv(browser_token_env)
-            if not python_token or not browser_token:
+            if not python_token:
                 raise CustomerRoutingConfigurationError(
                     f"Sandbox credentials are missing for customer {customer_id}."
                 )
@@ -205,11 +197,6 @@ class CustomerRouter:
                     "python_mcp_url",
                 ),
                 python_token=python_token,
-                browser_mcp_url=_https_mcp_url(
-                    route_raw.get("browser_mcp_url"),
-                    "browser_mcp_url",
-                ),
-                browser_token=browser_token,
                 allowed_hosts=_allowed_hosts(
                     route_raw.get("allowed_hosts"),
                     "allowed_hosts",

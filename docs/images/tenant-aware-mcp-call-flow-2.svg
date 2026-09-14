@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1150" viewBox="0 0 1800 1150" role="img" aria-labelledby="title desc">
   <title id="title">Tenant-aware MCP solution call flow (v2)</title>
-  <desc id="desc">End-to-end runtime flow from an authenticated user through a Microsoft Foundry Hosted Agent, OAuth2 Toolbox, private MCP broker, and customer-specific Python and browser Sandboxes.</desc>
+  <desc id="desc">End-to-end runtime flow through a broker Toolbox for customer Python tools and a separate approval-gated Toolbox for a shared Playwright Workspace.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#06172c"/>
@@ -62,7 +62,7 @@
   <circle cx="80" cy="1080" r="260" fill="#7454db" opacity="0.10"/>
 
   <text x="64" y="60" class="title">Tenant-Aware MCP Solution — Runtime Call Flow</text>
-  <text x="64" y="94" class="subtitle">One shared Hosted Agent and Toolbox; the private broker selects the customer route from validated delegated identity</text>
+  <text x="64" y="94" class="subtitle">One Hosted Agent, two Toolboxes: customer-routed Python/search and shared approval-gated Playwright</text>
 
   <!-- Lanes -->
   <rect x="40" y="130" width="260" height="790" rx="24" class="zone"/>
@@ -134,12 +134,12 @@
   <text x="1114" y="834" class="card-small">Sandbox ID: ffd11767…ffc</text>
 
   <rect x="1422" y="660" width="300" height="220" rx="20" fill="url(#sandbox)" class="card"/>
-  <text x="1454" y="700" class="card-title">Customer Browser Sandbox</text>
+  <text x="1454" y="700" class="card-title">Shared Playwright Workspace</text>
   <text x="1454" y="728" class="card-copy">customer-personal</text>
-  <text x="1454" y="758" class="card-copy">browser_navigate · snapshot</text>
+  <text x="1454" y="758" class="card-copy">curated MCP tools · approval required</text>
   <text x="1454" y="786" class="card-copy">Distinct bearer key</text>
   <text x="1454" y="808" class="card-copy">Read-only browsing policy</text>
-  <text x="1454" y="834" class="card-small">Sandbox ID: 0f23c1bf…722</text>
+  <text x="1454" y="834" class="card-small">ephemeral session · close after use</text>
 
   <!-- Public destinations -->
   <rect x="1082" y="930" width="640" height="82" rx="18" fill="#59451c" stroke="#ffd166" stroke-opacity="0.65" stroke-width="1.5"/>
@@ -167,7 +167,7 @@
 
   <path class="secret" d="M1572 580 V660"/>
   <rect x="1462" y="592" width="220" height="26" rx="8" fill="#ff8dc7"/>
-  <text x="1572" y="610" text-anchor="middle" class="tag">⑤ Browser route + key</text>
+  <text x="1572" y="610" text-anchor="middle" class="tag">⑤ Separate PWW Toolbox</text>
 
   <!-- Step 6: sandboxes to public destinations -->
   <path class="web" d="M1232 880 V930"/>

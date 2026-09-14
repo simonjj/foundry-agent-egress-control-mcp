@@ -659,6 +659,15 @@ Workspace access credentials.
 
 ## Definition of done
 
+Implementation status on September 14, 2026: the shared Workspace, curated
+Toolbox, dual-Toolbox agent, independent approval gates, Python/search
+regression gate, and browser Sandbox removal are complete in the private
+tenant. Azure Monitor does not expose a supported platform-metrics namespace
+for `Microsoft.LoadTestService/playwrightWorkspaces`, so rejected-call
+zero-minute evidence cannot be collected through `az monitor metrics`; the
+runtime evidence is the rejected approval continuation with no `mcp_call`.
+The live canary intentionally remains in `playground` network mode.
+
 - annotated `playwright-on-sandboxes` tag exists remotely at `e2e8c9b`;
 - new branch contains the reviewed migration plan;
 - one shared West US 3 PWW Workspace is provisioned;

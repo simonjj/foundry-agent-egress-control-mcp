@@ -6,13 +6,14 @@ architectures with Terraform:
 - the original `ss-agent-day3` profile with APIM, Foundry web search, managed
   Playwright Workspace, and ACA Sandbox Python; and
 - the parallel `ss-agent-vnets` profile with hub-and-spoke networking, Foundry
-  VNet injection, private endpoints, an internal Nginx gateway, and private ACA
-  Sandbox Python/search/browser tools.
+  VNet injection, private endpoints, an internal Nginx gateway, a private
+  customer-routed Python/search Sandbox, and a shared Playwright Workspace
+  exposed through a separately governed Foundry Toolbox.
 
 > [!IMPORTANT]
 > This is a working engineering reference, not a production security baseline.
 > Foundry Browser Automation and ACA Sandbox include preview surfaces as of
-> September 4, 2026. Review networking, data protection, capacity, retention,
+> September 14, 2026. Review networking, data protection, capacity, retention,
 > identity, and operational controls before using this design with production
 > or confidential data.
 
@@ -61,7 +62,7 @@ the original resource group.
 | Sandbox Group | `ss-vnet-sandbox-group-k7fncj` |
 | Sandbox VNet connection | `tools-egress` |
 | Python Sandbox | `e90b872f-557a-47c5-aacd-7ade7b44a265` |
-| Browser Sandbox | `09ad4db6-f4bb-4fad-bc2c-38751213a047` |
+| Browser automation | Shared West US 3 Playwright Workspace through a curated Toolbox |
 
 Open the private profile in:
 
@@ -83,7 +84,7 @@ flowchart LR
     subgraph TOOLS[Tools spoke 10.63.0.0/16]
       G[Internal Nginx gateway]
       PY[Private Python/search MCP Sandbox]
-      BR[Private Playwright MCP Sandbox]
+      PWW[PWW Toolbox and shared Playwright Workspace]
     end
     subgraph HUB[Hub 10.60.0.0/16]
       FPE[Foundry private endpoint]
@@ -93,12 +94,11 @@ flowchart LR
     A -->|Entra + SSE| G
     G --> FPE
     A -->|Bearer-authenticated MCP| PY
-    A -->|Bearer-authenticated MCP| BR
+    A -->|Approval-gated Toolbox MCP| PWW
     A -. private telemetry .-> MON
     ACR -. immutable images .-> PY
-    ACR -. immutable images .-> BR
     PY -. allowlisted public-web egress .-> WEB[Craigslist]
-    BR -. allowlisted public-web egress .-> WEB
+    PWW -. managed browser egress .-> WEB
 ```
 
 The agent and tools spokes are directly peered because Azure VNet peering is
@@ -129,12 +129,15 @@ linked to every VNet.
 
 **Browser**
 
-1. The agent uses the private Playwright MCP Sandbox instead of Foundry-managed
-   Browser Automation.
-2. Chromium runs headless with read-only behavioral instructions and approved
-   destination hosts.
-3. HTTPS errors are ignored only inside this governed Sandbox browser because
-   the Sandbox egress path presents an intercepted certificate chain.
+1. The agent calls a dedicated Foundry Toolbox backed by the shared Playwright
+   Workspace remote MCP endpoint.
+2. The Toolbox exposes only the curated browser allowlist; evaluation, file
+   upload, network inspection, and arbitrary browser code are excluded.
+3. Every browser action emits a typed runtime approval request. Session
+   creation, navigation, and closure require independent approvals.
+4. Browser sessions are ephemeral and must be closed after each request.
+   Customer host restrictions are currently agent policy, not PWW
+   network-enforced egress isolation.
 
 **Telemetry**
 
@@ -152,15 +155,15 @@ linked to every VNet.
 | Hosted runtime | Foundry Hosted Agent | VNet-injected Foundry Hosted Agent |
 | Python | ACA Sandbox MCP | Private ACA Sandbox MCP |
 | Search | Foundry Bing-backed web search | `search_craigslist` in the private Python Sandbox |
-| Browser | Foundry-managed Playwright Workspace | Private Playwright MCP Sandbox |
+| Browser | Foundry-managed Playwright Workspace | Shared PWW remote MCP through an approval-gated Toolbox |
 | Sandbox ingress | Public port plus bearer auth | Private Express environment plus bearer auth |
-| Sandbox egress | Sandbox policy | Sandbox policy plus customer VNet connection |
+| Sandbox egress | Sandbox policy | Python Sandbox policy plus customer VNet connection; PWW uses its managed data plane |
 | Observability | Public Application Insights ingestion | Azure Monitor Private Link Scope |
 
-Managed Foundry web search and managed Browser Automation are intentionally not
-registered in the private profile because they cannot provide the required
-customer-controlled private path. Work IQ is also not claimed for this profile
-without a supported customer-network endpoint.
+Managed Foundry web search is not registered in the private profile. Browser
+automation intentionally uses a shared Playwright Workspace outside the
+customer VNet boundary; approval, tool allowlisting, short-lived sessions, and
+customer-aware agent policy replace the former per-customer browser Sandbox.
 
 ### VNet endpoints and access
 
@@ -169,7 +172,7 @@ without a supported customer-network endpoint.
 | Hosted Agent Responses | `https://ss-vnet-ai-k7fncj.services.ai.azure.com/api/projects/ss-vnet-project/agents/craigslist-agent-vnet/endpoint/protocols/openai/responses?api-version=v1` |
 | Internal Nginx | `https://ss-vnet-gateway-k7fncj.thankfulwater-d8993605.centralus.azurecontainerapps.io` |
 | Python MCP | `https://e90b872f-557a-47c5-aacd-7ade7b44a265--8080.whitemushroom-0338fef6.centralus.azurecontainerapps.io/mcp` |
-| Browser MCP | `https://09ad4db6-f4bb-4fad-bc2c-38751213a047--8080.whitemushroom-0338fef6.centralus.azurecontainerapps.io/mcp` |
+| Playwright Workspace MCP | Derived from the Workspace ID as `https://<region>.mcp.playwright.microsoft.com/playwrightworkspaces/<workspace-id>/mcp` |
 
 These URLs are deployment coordinates, not public application endpoints. After
 final lockdown the Foundry data plane and Responses URL require private network
@@ -248,9 +251,7 @@ flowchart LR
     F --> W[Bing-backed web search]
     A -->|Bearer-authenticated MCP| S[ACA Sandbox Python interpreter]
     A -->|Project managed identity| P[Azure Playwright Workspace]
-    B[ACA Sandbox Playwright MCP] -. preserved inactive fallback .-> A
     R[Azure Container Registry] --> S
-    R --> B
     A -. OpenTelemetry .-> O[Application Insights and Log Analytics]
     G -. Metrics and policy events .-> O
 ```
@@ -267,8 +268,7 @@ flowchart LR
 | ACA Sandbox Group | ARM control-plane boundary for isolated Sandbox workloads |
 | Python MCP Sandbox | Runs the bearer-protected `run_python` tool with resource and egress restrictions |
 | Playwright Workspace | Active browser rendering and interactive read-only page inspection |
-| Browser MCP Sandbox | Preserved rollback path using Playwright in ACA Sandbox; not connected to the active agent |
-| ACR | Stores immutable interpreter and browser-fallback container images |
+| ACR | Stores immutable interpreter, gateway, broker, and hosted-agent images |
 | Application Insights | Receives OpenTelemetry spans, GenAI events, token metrics, and tool metrics |
 | Log Analytics | Backs Application Insights and provides centralized log retention/query |
 | Terraform | Creates Azure resources, identities, RBAC, APIM configuration, connections, and Sandbox workflow hooks |
@@ -301,7 +301,8 @@ flowchart LR
 2. Foundry uses the `playwright-automation` project connection.
 3. The project managed identity accesses the Azure Playwright Workspace through
    `Playwright Workspace Contributor` RBAC.
-4. The separate browser MCP Sandbox remains deployed only as a rollback option.
+4. The Playwright-on-Sandboxes implementation is preserved only by the
+   `playwright-on-sandboxes` Git tag; no browser Sandbox remains deployed.
 
 **Telemetry**
 
@@ -475,7 +476,7 @@ Terraform creates:
 - ACA Sandbox Group;
 - APIM service, product, API, operation, policy, and subscription;
 - Playwright Workspace and project connection;
-- Python and browser-fallback Sandbox workflow hooks; and
+- Python Sandbox workflow hooks; and
 - sensitive tokens and exported endpoints.
 
 APIM is configured through ARM/AzAPI rather than its Developer-tier management
@@ -509,7 +510,7 @@ Inspect names without printing sensitive values:
 
 ```powershell
 azd env get-values |
-  Select-String '^(AZURE_|FOUNDRY_|APPLICATION_|MCP_SERVER_URL|PLAYWRIGHT_CONNECTION_ID|SANDBOX_ID|BROWSER_SANDBOX_ID)'
+  Select-String '^(AZURE_|FOUNDRY_|APPLICATION_|MCP_SERVER_URL|PLAYWRIGHT_|SANDBOX_ID)'
 ```
 
 Do not paste full `azd env get-values` output into logs or issues because it can
@@ -537,8 +538,8 @@ runtime environment.
 | `MCP_AUTH_TOKEN` | Yes | Python MCP bearer token |
 | `PLAYWRIGHT_CONNECTION_ID` | No | Foundry project connection for Playwright Workspace |
 | `PRIVATE_FOUNDRY_GATEWAY_ENDPOINT` | No | Internal Nginx endpoint used by the VNet profile |
-| `BROWSER_MCP_SERVER_URL` | No | Private Playwright MCP Sandbox endpoint |
-| `BROWSER_MCP_AUTH_TOKEN` | Yes | Private Playwright MCP bearer token |
+| `PLAYWRIGHT_TOOLBOX_ENDPOINT` | No | Promoted Foundry Toolbox endpoint for the shared PWW remote MCP |
+| `PLAYWRIGHT_TOOLBOX_ALLOWED_TOOLS` | No | Exact curated, prefixed PWW tool names |
 | `TOOLBOX_ENDPOINT` | No | Foundry Toolbox MCP endpoint used for broker-backed tools |
 | `TOOLBOX_NAME` | No | Logical name assigned to the broker Toolbox tool source |
 | `TOOLBOX_ALLOWED_TOOLS` | No | Comma-separated allowlist of exact Toolbox tool names exposed to the agent |
@@ -549,8 +550,8 @@ runtime environment.
 | `OTEL_TRACES_SAMPLER` | No | OpenTelemetry trace sampler |
 | `OTEL_METRIC_EXPORT_INTERVAL` | No | Metric export interval in milliseconds |
 
-The browser-fallback endpoint/token and Sandbox ID remain Terraform/azd outputs,
-but they are intentionally not passed to the active Hosted Agent.
+The former browser-fallback endpoint, token, image, and Sandbox ID are no
+longer Terraform or azd outputs.
 
 ## Validation
 
@@ -625,10 +626,9 @@ terraform -chdir=".\infrastructure\terraform-vnet" plan `
   -var="allow_registry_token_fallback=true"
 ```
 
-The legacy root pins its deployed interpreter and browser-fallback image hashes.
-Change `legacy_interpreter_source_hash` or `legacy_browser_source_hash` only
-when intentionally updating `ss-agent-day3`; VNet-only tool changes must not
-replace the original Sandboxes.
+The legacy root pins its deployed interpreter image hash. Change
+`legacy_interpreter_source_hash` only when intentionally updating
+`ss-agent-day3`; VNet-only tool changes must not replace that Python Sandbox.
 
 ## Observability
 
@@ -817,8 +817,8 @@ documented in [`ACA-TF-PLAN.md`](ACA-TF-PLAN.md).
 - Direct Azure CLI acquisition of a Playwright audience token is blocked by
   `AADSTS65002` in this tenant; the active managed-identity connection avoids
   that flow.
-- The browser MCP Sandbox remains deployed as a rollback path and is never
-  deleted automatically.
+- The Playwright-on-Sandboxes rollback source is the immutable
+  `playwright-on-sandboxes` Git tag; the browser ACA Sandbox is removed.
 - The private profile still requires public Azure control-plane and Entra
   authentication endpoints.
 - Craigslist search and browser navigation are controlled public-egress
@@ -858,7 +858,6 @@ documented in [`ACA-TF-PLAN.md`](ACA-TF-PLAN.md).
 |-- scripts/                   Deployment, invocation, validation, and queries
 |-- src/
 |   |-- agent/                 Foundry Hosted Agent
-|   |-- browser/               ACA Playwright MCP image
 |   |-- gateway/               Internal Nginx streaming gateway
 |   `-- interpreter/           ACA Sandbox Python/search MCP server
 `-- tests/                     Python executor unit tests

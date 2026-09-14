@@ -90,19 +90,6 @@ output "PLAYWRIGHT_CONNECTION_ID" {
   value = azapi_resource.playwright_connection.id
 }
 
-output "PLAYWRIGHT_MCP_SERVER_URL" {
-  value = data.external.browser_sandbox.result.mcp_url
-}
-
-output "PLAYWRIGHT_MCP_AUTH_TOKEN" {
-  value     = random_password.browser_mcp_auth_token.result
-  sensitive = true
-}
-
-output "BROWSER_SANDBOX_ID" {
-  value = data.external.browser_sandbox.result.sandbox_id
-}
-
 output "APIM_SUBSCRIPTION_KEY" {
   value     = random_password.apim_primary_key.result
   sensitive = true

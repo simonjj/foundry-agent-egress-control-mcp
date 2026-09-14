@@ -2,7 +2,7 @@
 param(
     [Parameter(Mandatory)][string]$Registry,
     [Parameter(Mandatory)]
-    [ValidateSet("interpreter", "browser", "gateway")]
+    [ValidateSet("interpreter", "gateway")]
     [string]$Component,
     [Parameter(Mandatory)][string]$ImageTag
 )
@@ -25,16 +25,6 @@ $profiles = @{
         Repository = "python-interpreter"
         Source     = Join-Path $root "src\interpreter"
         Files      = @("Dockerfile", "requirements.txt", "server.py", "executor.py")
-    }
-    browser     = @{
-        Repository = "browser-mcp"
-        Source     = Join-Path $root "src\browser"
-        Files      = @(
-            "Dockerfile",
-            "package.json",
-            "package-lock.json",
-            "server.mjs"
-        )
     }
     gateway     = @{
         Repository = "foundry-gateway"

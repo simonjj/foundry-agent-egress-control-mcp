@@ -42,20 +42,6 @@ def craigslist_hosts(site: str) -> list[str]:
 
 def profile_for(name: str, token: str, craigslist_site: str) -> Profile:
     allowed_hosts = craigslist_hosts(craigslist_site)
-    if name == "browser":
-        return Profile(
-            component="browser-automation",
-            entrypoint=["node", "/app/server.mjs"],
-            environment={
-                "MCP_AUTH_TOKEN": token,
-                "MCP_PORT": "8080",
-                "PLAYWRIGHT_MCP_PORT": "8931",
-                "PLAYWRIGHT_ALLOWED_ORIGINS": ";".join(
-                    f"https://{host}" for host in allowed_hosts
-                ),
-            },
-            allowed_hosts=allowed_hosts,
-        )
     return Profile(
         component="code-interpreter",
         entrypoint=["python", "/app/server.py"],
@@ -219,7 +205,7 @@ def main() -> None:
     parser.add_argument("--craigslist-site", required=True)
     parser.add_argument(
         "--profile",
-        choices=["code-interpreter", "browser"],
+        choices=["code-interpreter"],
         default="code-interpreter",
     )
     args = parser.parse_args()

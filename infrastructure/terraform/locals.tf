@@ -22,10 +22,6 @@ locals {
   interpreter_image_tag   = "tf-${substr(local.interpreter_source_hash, 0, 12)}"
   mcp_token_fingerprint   = substr(sha256(random_password.mcp_auth_token.result), 0, 12)
 
-  browser_source_hash       = var.legacy_browser_source_hash
-  browser_image_tag         = "tf-${substr(local.browser_source_hash, 0, 12)}"
-  browser_token_fingerprint = substr(sha256(random_password.browser_mcp_auth_token.result), 0, 12)
-
   role_ids = {
     acr_pull                          = "7f951dda-4ed3-4680-a7ca-43fe172d538d"
     cognitive_services_openai_user    = "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd"

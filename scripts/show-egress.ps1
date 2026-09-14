@@ -1,7 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$TerraformPath = "",
-    [switch]$BrowserFallback
+    [string]$TerraformPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,8 +34,7 @@ $subscriptionId = Get-TerraformOutput -Name "AZURE_SUBSCRIPTION_ID"
 $resourceGroupName = Get-TerraformOutput -Name "AZURE_RESOURCE_GROUP"
 $location = Get-TerraformOutput -Name "AZURE_LOCATION"
 $sandboxGroupName = Get-TerraformOutput -Name "SANDBOX_GROUP_NAME"
-$sandboxOutputName = if ($BrowserFallback) { "BROWSER_SANDBOX_ID" } else { "SANDBOX_ID" }
-$sandboxId = Get-TerraformOutput -Name $sandboxOutputName
+$sandboxId = Get-TerraformOutput -Name "SANDBOX_ID"
 
 az account set --subscription $subscriptionId
 $token = az account get-access-token `

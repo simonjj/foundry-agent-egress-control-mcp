@@ -25,7 +25,6 @@ if (-not $PipIndexUrl) {
 $root = Split-Path $PSScriptRoot -Parent
 $containers = @(
     "ss-vnet-interpreter-check",
-    "ss-vnet-browser-check",
     "ss-vnet-gateway-check"
 )
 
@@ -34,9 +33,6 @@ try {
         --build-arg "PIP_INDEX_URL=$PipIndexUrl" `
         --tag "ss-vnet-interpreter:test" `
         (Join-Path $root "src\interpreter")
-    wslc build `
-        --tag "ss-vnet-browser:test" `
-        (Join-Path $root "src\browser")
     wslc build `
         --tag "ss-vnet-gateway:test" `
         (Join-Path $root "src\gateway")
@@ -48,11 +44,6 @@ try {
         "ss-vnet-interpreter:test" | Out-Null
     wslc run --detach `
         --name $containers[1] `
-        --env "MCP_AUTH_TOKEN=local-test-token" `
-        --publish "18081:8080" `
-        "ss-vnet-browser:test" | Out-Null
-    wslc run --detach `
-        --name $containers[2] `
         --env "FOUNDRY_BACKEND_HOST=example.com" `
         --env "FOUNDRY_PROJECT_NAME=test" `
         --publish "18082:8080" `
@@ -60,7 +51,6 @@ try {
 
     foreach ($target in @(
         "http://127.0.0.1:18080/health",
-        "http://127.0.0.1:18081/health",
         "http://127.0.0.1:18082/health"
     )) {
         $healthy = $false
