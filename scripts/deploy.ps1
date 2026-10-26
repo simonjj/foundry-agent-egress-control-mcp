@@ -68,7 +68,7 @@ Invoke-Checked -Command $TerraformPath -Arguments @("-chdir=$infraDirectory", "i
 Invoke-Checked -Command $TerraformPath -Arguments @("-chdir=$infraDirectory", "fmt", "-check", "-recursive")
 Invoke-Checked -Command $TerraformPath -Arguments @("-chdir=$infraDirectory", "validate")
 
-$planPath = Join-Path $infraDirectory ".terraform\state-street-day3.tfplan"
+$planPath = Join-Path $infraDirectory ".terraform\financial-services-customer-scenario-day3.tfplan"
 Invoke-Checked -Command $TerraformPath -Arguments @(
     "-chdir=$infraDirectory",
     "plan",

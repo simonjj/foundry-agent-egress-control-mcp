@@ -104,7 +104,7 @@ resource "azurerm_cognitive_account_project" "agent" {
   name                 = local.foundry_project_name
   cognitive_account_id = azurerm_cognitive_account.foundry.id
   location             = azurerm_resource_group.this.location
-  display_name         = "State Street Day 3 Agent"
+  display_name         = "Financial Services Customer Scenario Day 3 Agent"
   description          = "Foundry Hosted Agent reference architecture with APIM, ACA Sandbox, web grounding, and browser automation."
 
   identity {
@@ -534,7 +534,7 @@ resource "azapi_resource" "agent_product" {
     properties = {
       approvalRequired     = false
       description          = "Governed access to the Foundry Responses API."
-      displayName          = "State Street Agent"
+      displayName          = "Financial Services Customer Scenario Agent"
       state                = "published"
       subscriptionRequired = true
       subscriptionsLimit   = 10
@@ -574,7 +574,7 @@ resource "azapi_resource" "agent_subscription" {
   body = {
     properties = {
       allowTracing = false
-      displayName  = "State Street hosted agent"
+      displayName  = "Financial Services Customer Scenario hosted agent"
       primaryKey   = random_password.apim_primary_key.result
       scope        = azapi_resource.agent_product.id
       secondaryKey = random_password.apim_secondary_key.result

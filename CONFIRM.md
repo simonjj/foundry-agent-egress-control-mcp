@@ -1,6 +1,6 @@
 # End-to-End Deployment Confirmation
 
-Use this procedure to confirm the deployed State Street reference agent,
+Use this procedure to confirm the deployed Financial Services Customer Scenario reference agent,
 including the Hosted Agent, APIM path, ACA Sandbox code interpreter, Bing-backed
 web search, Azure Playwright Workspace, observability, and Terraform state.
 

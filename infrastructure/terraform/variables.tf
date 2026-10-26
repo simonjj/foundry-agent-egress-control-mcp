@@ -1,5 +1,5 @@
 variable "subscription_id" {
-  description = "Azure subscription that receives the State Street reference deployment."
+  description = "Azure subscription that receives the Financial Services Customer Scenario reference deployment."
   type        = string
   default     = "30501c6c-81f6-41ac-a388-d29cf43a020d"
 
@@ -83,7 +83,7 @@ variable "tags" {
   description = "Additional tags applied to Azure resources."
   type        = map(string)
   default = {
-    application = "state-street-day3-agent"
+    application = "financial-services-customer-scenario-day3-agent"
     managed_by  = "terraform"
     scenario    = "foundry-hosted-agent"
   }

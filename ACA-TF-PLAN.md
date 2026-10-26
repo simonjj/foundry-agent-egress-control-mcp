@@ -7,7 +7,7 @@ logic from this repository into a clean checkout of the
 `Azure/terraform-provider-aca` module repository.
 
 This is a migration plan, not an implementation. No ACA Terraform module files
-were changed for the current State Street deployment.
+were changed for the current Financial Services Customer Scenario deployment.
 
 The migration must:
 
@@ -16,7 +16,7 @@ The migration must:
 - retain create-or-reuse behavior;
 - never delete a Sandbox, disk, snapshot, volume, or Sandbox Group implicitly;
 - separate ARM control-plane ownership from ACA data-plane orchestration; and
-- leave the State Street repository responsible only for workload-specific
+- leave the Financial Services Customer Scenario repository responsible only for workload-specific
   source, configuration, deployment composition, and acceptance tests.
 
 ## Agreed design
@@ -41,7 +41,7 @@ data plane and does not make Sandboxes into Terraform-managed ARM resources.
 The stable module must not model a Sandbox instance as an `azapi_resource`.
 Individual Sandbox operations are not ARM CRUD operations.
 
-## Current State Street ownership
+## Current Financial Services Customer Scenario ownership
 
 | Concern | Current implementation |
 |---|---|
@@ -112,13 +112,13 @@ never be enabled implicitly by the root module.
 - Provide a strong, documented destruction guard.
 
 The first release must remain pinned to `2026-02-01-preview`, the API version
-that currently manages the State Street group. Any API-version upgrade is a
+that currently manages the Financial Services Customer Scenario group. Any API-version upgrade is a
 separate change after migration and zero-drift confirmation.
 
 ### Identity representation
 
 Upstream PR #7 currently places identity under `body.identity`. The deployed
-State Street resource uses the native AzAPI identity block. The module must use:
+Financial Services Customer Scenario resource uses the native AzAPI identity block. The module must use:
 
 ```hcl
 resource "azapi_resource" "this" {
@@ -238,22 +238,22 @@ must not be mistaken automatically for remote resource changes.
 
 ### Provider compatibility
 
-The ACA module currently constrains AzureRM below 5.0, while State Street uses
+The ACA module currently constrains AzureRM below 5.0, while Financial Services Customer Scenario uses
 AzureRM 5.2.0. Before publishing Sandbox support:
 
 1. audit the module for AzureRM 5.x breaking changes;
 2. test the module against its supported 4.x baseline and 5.2.0;
 3. widen the constraint only after tests pass, for example to `< 6.0.0`; and
-4. pin State Street to a commit or release whose constraints accept 5.2.0.
+4. pin Financial Services Customer Scenario to a commit or release whose constraints accept 5.2.0.
 
-Do not work around the conflict by downgrading the deployed State Street
+Do not work around the conflict by downgrading the deployed Financial Services Customer Scenario
 configuration during migration.
 
 ### Protection semantics
 
 A `CanNotDelete` management lock managed in the same Terraform state is not
 sufficient: a single `terraform destroy` can remove the lock and then delete
-the group. The State Street path therefore requires both:
+the group. The Financial Services Customer Scenario path therefore requires both:
 
 1. a static `prevent_destroy = true` lifecycle guard on the Sandbox Group
    resource; and
@@ -543,7 +543,7 @@ resource and saved pre-migration IDs.
 After apply:
 
 1. Compare Sandbox Group, principal, RBAC, Sandbox, disk, and endpoint IDs.
-2. Run the full State Street tool tests.
+2. Run the full Financial Services Customer Scenario tool tests.
 3. Run an immediate zero-drift plan.
 4. Re-export **all** Terraform outputs to the selected `azd` environment.
 5. Confirm `show-egress.ps1` reads live Terraform outputs.
@@ -594,7 +594,7 @@ In a manually approved test environment:
 7. verify default-deny egress; and
 8. clean up only through an explicit separate workflow.
 
-### State Street regression
+### Financial Services Customer Scenario regression
 
 Run:
 
@@ -626,9 +626,9 @@ revert, stash, or mix it.
 
 If maintainers reject Terraform-shaped imperative orchestration, keep the
 generic workflow under `tools/sandbox` in the ACA repository and consume it as
-a versioned companion tool. Do not return generic scripts to State Street.
+a versioned companion tool. Do not return generic scripts to Financial Services Customer Scenario.
 
-## State Street changes after module publication
+## Financial Services Customer Scenario changes after module publication
 
 1. Pin the reviewed ACA module commit/release.
 2. Replace the local Sandbox Group and RBAC with `module.sandbox_group`.
@@ -648,10 +648,10 @@ a versioned companion tool. Do not return generic scripts to State Street.
 | Phase | Work | Exit criterion |
 |---|---|---|
 | 0 | Clean worktree, provider audit, state backup/backend, deployed-ID inventory | Recoverable baseline and no unrelated changes |
-| 1 | Correct and land `modules/sandbox_groups` | Module represents State Street group without remote changes |
+| 1 | Correct and land `modules/sandbox_groups` | Module represents Financial Services Customer Scenario group without remote changes |
 | 2 | Publish images through a single tag/digest owner | Immutable references available to Terraform |
 | 3 | Build `experimental/sandbox_workload` | Existing Sandbox can be resolved/reused without consumer scripts |
-| 4 | Move State Street control-plane state and rewire workloads | IDs and endpoints unchanged; no implicit delete |
+| 4 | Move Financial Services Customer Scenario control-plane state and rewire workloads | IDs and endpoints unchanged; no implicit delete |
 | 5 | Run regression, telemetry, and drift checks | All checks pass and plan is zero drift |
 | 6 | Release and pin reviewed versions | Consumer no longer depends on unreviewed local code |
 
@@ -670,7 +670,7 @@ a versioned companion tool. Do not return generic scripts to State Street.
 - Sandbox Group deletion requires explicit multi-step approval.
 - Terraform state is backed up and preferably remotely locked/versioned.
 - All Terraform outputs are re-exported to `azd`.
-- State Street tests, observability checks, and final zero-drift plan pass.
+- Financial Services Customer Scenario tests, observability checks, and final zero-drift plan pass.
 
 ## References
 

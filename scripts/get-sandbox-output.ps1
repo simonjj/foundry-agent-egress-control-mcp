@@ -39,7 +39,7 @@ if (-not $sandbox -and $query.config_fingerprint -eq $query.legacy_config_finger
 }
 
 if (-not $sandbox) {
-    throw "No State Street $($query.component) Sandbox exists for image $($query.image_tag) and configuration $($query.config_fingerprint)."
+    throw "No Financial Services Customer Scenario $($query.component) Sandbox exists for image $($query.image_tag) and configuration $($query.config_fingerprint)."
 }
 
 if (-not $sandbox.ports) {

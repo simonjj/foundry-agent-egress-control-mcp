@@ -3,7 +3,7 @@
 requiredVersions:
   extensions:
     azure.ai.agents: '>=1.0.0-beta.9'
-name: state-street-day3-agent
+name: financial-services-customer-scenario-day3-agent
 services:
   ai-project:
     host: azure.ai.project
@@ -38,7 +38,7 @@ services:
       - ai-project
     kind: hosted
     name: craigslist-agent
-    displayName: State Street Day 3 Reference Agent
+    displayName: Financial Services Customer Scenario Day 3 Reference Agent
     description: Routes model and Bing-backed web-search traffic through APIM and uses ACA Sandbox plus Playwright Workspace tools.
     protocols:
       - protocol: responses

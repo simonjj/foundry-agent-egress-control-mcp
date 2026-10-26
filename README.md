@@ -1,4 +1,4 @@
-# State Street Foundry Agent Reference Architecture
+# Financial Services Customer Scenario Foundry Agent Reference Architecture
 
 This repository deploys a complete Microsoft Foundry Hosted Agent reference
 architecture with Terraform. It demonstrates governed model access through
@@ -34,7 +34,7 @@ Open the deployed agent in
 
 ## Architecture
 
-![Rendered State Street agent architecture](docs/images/state-street-agent-architecture.svg)
+![Rendered Financial Services Customer Scenario agent architecture](docs/images/financial-services-customer-scenario-agent-architecture.svg)
 
 The source-level view is:
 
